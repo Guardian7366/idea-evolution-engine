@@ -1,9 +1,9 @@
 # Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
 *.pyd
 .venv/
+venv/
 
 # Env files
 .env
@@ -12,6 +12,7 @@ __pycache__/
 # Node
 node_modules/
 dist/
+build/
 
 # OS
 .DS_Store
