@@ -77,7 +77,7 @@ cd idea-evolution-engine
 
 ---
 
-## 🔧 BACKEND
+## 🔧 BACKEND (NUEVA TERMINAL)
 
 ### 2. Ir al backend
 
@@ -121,10 +121,10 @@ pip install fastapi uvicorn pydantic pydantic-settings
 
 ### 6. Configurar variables de entorno
 
-Asegúrate de tener el archivo:
+Asegúrate de crear el archivo:
 
-```text
-backend/.env
+```bash
+vim .env
 ```
 
 Ejemplo:
@@ -141,7 +141,7 @@ BACKEND_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ### 7. Ejecutar backend
 
 ```bash
-uvicorn backend.app.main:app --reload
+uvicorn app.main:app --reload
 ```
 
 ---
@@ -158,12 +158,12 @@ Debes ver la documentación Swagger con todos los endpoints.
 
 ---
 
-## 💻 FRONTEND
+## 💻 FRONTEND (NUEVA TERMINAL)
 
 ### 8. Ir al frontend
 
 ```bash
-cd ../frontend
+cd frontend
 ```
 
 ---
@@ -178,10 +178,10 @@ npm install
 
 ### 10. Configurar variables de entorno
 
-Archivo:
+Asegúrate de crear el archivo:
 
-```text
-frontend/.env
+```bash
+vim .env
 ```
 
 Contenido:

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from backend.app.application.dto.version_dto import ActiveIdeaVersion
+from app.application.dto.version_dto import ActiveIdeaVersion
 
 
 class SelectVariantRequest(BaseModel):

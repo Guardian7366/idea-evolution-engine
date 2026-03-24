@@ -1,34 +1,34 @@
 from fastapi import APIRouter
 
-from backend.app.application.dto.comparison_dto import (
+from app.application.dto.comparison_dto import (
     CompareVersionsRequest,
     CompareVersionsResponse,
 )
-from backend.app.application.dto.idea_dto import (
+from app.application.dto.idea_dto import (
     IdeaCreateRequest,
     IdeaCreateResponse,
 )
-from backend.app.application.dto.perspective_dto import (
+from app.application.dto.perspective_dto import (
     ExplorePerspectiveRequest,
     ExplorePerspectiveResponse,
 )
-from backend.app.application.dto.selection_dto import (
+from app.application.dto.selection_dto import (
     SelectVariantRequest,
     SelectVariantResponse,
 )
-from backend.app.application.dto.synthesis_dto import (
+from app.application.dto.synthesis_dto import (
     GenerateFinalSynthesisRequest,
     GenerateFinalSynthesisResponse,
 )
-from backend.app.application.dto.transformation_dto import (
+from app.application.dto.transformation_dto import (
     TransformVersionRequest,
     TransformVersionResponse,
 )
-from backend.app.application.dto.variant_dto import (
+from app.application.dto.variant_dto import (
     GenerateVariantsRequest,
     GenerateVariantsResponse,
 )
-from backend.app.application.services.idea_service import IdeaService
+from app.application.services.idea_service import IdeaService
 
 router = APIRouter()
 

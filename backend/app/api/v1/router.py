@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from backend.app.api.v1.endpoints import ideas, sessions
+from app.api.v1.endpoints import ideas, sessions
 
 api_v1_router = APIRouter()
 

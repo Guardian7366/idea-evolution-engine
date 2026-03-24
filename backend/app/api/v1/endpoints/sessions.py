@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from backend.app.application.dto.session_dto import (
+from app.application.dto.session_dto import (
     SessionCreateResponse,
 )
 

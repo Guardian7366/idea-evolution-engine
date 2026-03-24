@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Literal
 
-from backend.app.application.dto.version_dto import ActiveIdeaVersion
+from app.application.dto.version_dto import ActiveIdeaVersion
 
 
 class TransformVersionRequest(BaseModel):
