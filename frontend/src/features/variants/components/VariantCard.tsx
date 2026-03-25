@@ -1,5 +1,5 @@
 import type { IdeaVariantItem } from '../../../types/idea'
-import { Button } from '../../../components/shared/Button'
+import { Button } from '../../../components/shared/ui/Button'
 
 interface VariantCardProps {
   variant: IdeaVariantItem

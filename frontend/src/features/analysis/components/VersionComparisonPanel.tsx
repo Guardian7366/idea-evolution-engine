@@ -3,7 +3,7 @@ import type {
   VersionComparisonResult,
 } from '../../../types/idea'
 
-import { Button } from '../../../components/shared/Button'
+import { Button } from '../../../components/shared/ui/Button'
 import { EmptyState } from '../../../components/shared/EmptyState'
 
 interface VersionComparisonPanelProps {
