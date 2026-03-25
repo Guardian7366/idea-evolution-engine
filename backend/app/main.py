@@ -31,7 +31,10 @@ def root() -> dict[str, str]:
 @app.get("/health")
 def health_check() -> dict[str, str]:
     """Health check endpoint for quick status verification."""
-    return {"status": "ok", "environment": settings.app_env}
+    return {
+        "message": f"{settings.app_name} is healthy",
+        "environment": settings.app_env,
+    }
 
 
 # Main versioned API router.
