@@ -3,6 +3,9 @@ import type {
   PerspectiveType,
 } from '../../../types/idea'
 
+import { Button } from '../../../components/shared/Button'
+import { EmptyState } from '../../../components/shared/EmptyState'
+
 interface PerspectiveExplorerPanelProps {
   hasActiveVersion: boolean
   selectedPerspective: PerspectiveType
@@ -38,9 +41,9 @@ export function PerspectiveExplorerPanel({
       </p>
 
       {!hasActiveVersion ? (
-        <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+        <EmptyState>
           You need an active version before exploring perspectives.
-        </div>
+        </EmptyState>
       ) : (
         <div className="mt-4 space-y-4">
           <div className="space-y-2">
@@ -67,14 +70,9 @@ export function PerspectiveExplorerPanel({
             </select>
           </div>
 
-          <button
-            type="button"
-            onClick={onExplore}
-            disabled={isExploring}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <Button type="button" onClick={onExplore} disabled={isExploring} loading={isExploring}>
             {isExploring ? 'Exploring...' : 'Explore Perspective'}
-          </button>
+          </Button>
 
           {perspectiveResult ? (
             <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">

@@ -1,4 +1,5 @@
 import type { ActiveIdeaVersion } from '../../../types/idea'
+import { EmptyState } from '../../../components/shared/EmptyState'
 
 interface ActiveVersionPanelProps {
   activeVersion: ActiveIdeaVersion | null
@@ -12,9 +13,9 @@ export function ActiveVersionPanel({
       <h3 className="text-xl font-semibold">Active version</h3>
 
       {!activeVersion ? (
-        <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+        <EmptyState>
           No active version yet. Select one variant to create version 1.
-        </div>
+        </EmptyState>
       ) : (
         <div className="mt-4 space-y-4">
           <div className="flex flex-wrap items-center gap-2">

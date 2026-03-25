@@ -1,4 +1,6 @@
 import type { FinalSynthesisResult } from '../../../types/idea'
+import { Button } from '../../../components/shared/Button'
+import { EmptyState } from '../../../components/shared/EmptyState'
 
 interface FinalSynthesisPanelProps {
   hasActiveVersion: boolean
@@ -21,19 +23,19 @@ export function FinalSynthesisPanel({
       </p>
 
       {!hasActiveVersion ? (
-        <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+        <EmptyState>
           You need an active version before generating a final synthesis.
-        </div>
+        </EmptyState>
       ) : (
         <div className="mt-4 space-y-4">
-          <button
+          <Button
             type="button"
             onClick={onGenerate}
             disabled={isGenerating}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
+            loading={isGenerating}
           >
             {isGenerating ? 'Generating...' : 'Generate Final Synthesis'}
-          </button>
+          </Button>
 
           {synthesisResult ? (
             <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">

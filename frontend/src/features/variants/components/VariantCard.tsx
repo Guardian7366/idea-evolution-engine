@@ -1,4 +1,5 @@
 import type { IdeaVariantItem } from '../../../types/idea'
+import { Button } from '../../../components/shared/Button'
 
 interface VariantCardProps {
   variant: IdeaVariantItem
@@ -23,14 +24,15 @@ export function VariantCard({
       <p className="mt-3 text-sm leading-6 text-slate-700">{variant.content}</p>
 
       <div className="mt-4">
-        <button
+        <Button
           type="button"
+          variant="secondary"
           onClick={() => onSelect(variant.variant_id)}
           disabled={isSelecting}
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          loading={isSelecting}
         >
           {isSelecting ? 'Selecting...' : 'Select Variant'}
-        </button>
+        </Button>
       </div>
     </article>
   )

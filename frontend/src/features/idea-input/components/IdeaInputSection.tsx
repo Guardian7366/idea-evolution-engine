@@ -1,3 +1,5 @@
+import { Button } from '../../../components/shared/Button'
+
 interface IdeaInputSectionProps {
   ideaInput: string
   isLoading: boolean
@@ -28,14 +30,14 @@ export function IdeaInputSection({
           className="min-h-[140px] w-full rounded-lg border border-slate-300 p-3 outline-none focus:border-slate-500"
         />
 
-        <button
+        <Button
           type="button"
           onClick={onGenerateVariants}
           disabled={isLoading || ideaInput.trim().length < 3}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
+          loading={isLoading}
         >
           {isLoading ? 'Generating...' : 'Generate Variants'}
-        </button>
+        </Button>
 
         {errorMessage ? (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">

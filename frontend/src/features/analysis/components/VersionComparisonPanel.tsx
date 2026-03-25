@@ -3,6 +3,9 @@ import type {
   VersionComparisonResult,
 } from '../../../types/idea'
 
+import { Button } from '../../../components/shared/Button'
+import { EmptyState } from '../../../components/shared/EmptyState'
+
 interface VersionComparisonPanelProps {
   baseVersion: ActiveIdeaVersion | null
   activeVersion: ActiveIdeaVersion | null
@@ -42,20 +45,15 @@ export function VersionComparisonPanel({
       </div>
 
       {!canCompare ? (
-        <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+        <EmptyState>
           Select a variant and then transform the active version to enable
           comparison.
-        </div>
+        </EmptyState>
       ) : (
         <div className="mt-4 space-y-4">
-          <button
-            type="button"
-            onClick={onCompare}
-            disabled={isComparing}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <Button type="button" onClick={onCompare} disabled={isComparing} loading={isComparing}>
             {isComparing ? 'Comparing...' : 'Compare Versions'}
-          </button>
+          </Button>
 
           {comparisonResult ? (
             <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">

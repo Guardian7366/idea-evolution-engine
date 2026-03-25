@@ -1,3 +1,6 @@
+import { Button } from '../../../components/shared/Button'
+import { EmptyState } from '../../../components/shared/EmptyState'
+
 interface VersionTransformPanelProps {
   hasActiveVersion: boolean
   transformInstruction: string
@@ -22,9 +25,9 @@ export function VersionTransformPanel({
       </p>
 
       {!hasActiveVersion ? (
-        <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+        <EmptyState>
           Select a variant first to activate version 1 before transforming it.
-        </div>
+        </EmptyState>
       ) : (
         <div className="mt-4 space-y-4">
           <textarea
@@ -34,14 +37,14 @@ export function VersionTransformPanel({
             className="min-h-[120px] w-full rounded-lg border border-slate-300 p-3 outline-none focus:border-slate-500"
           />
 
-          <button
+          <Button
             type="button"
             onClick={onRefine}
             disabled={isTransforming || transformInstruction.trim().length < 3}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
+            loading={isTransforming}
           >
             {isTransforming ? 'Refining...' : 'Refine Active Version'}
-          </button>
+          </Button>
         </div>
       )}
     </section>
