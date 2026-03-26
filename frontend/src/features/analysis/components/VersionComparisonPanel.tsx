@@ -5,6 +5,7 @@ import type {
 
 import { Button } from '../../../components/shared/ui/Button'
 import { EmptyState } from '../../../components/shared/EmptyState'
+import { Spinner } from '../../../components/shared/ui/Spinner'
 
 interface VersionComparisonPanelProps {
   baseVersion: ActiveIdeaVersion | null
@@ -52,7 +53,10 @@ export function VersionComparisonPanel({
       ) : (
         <div className="mt-4 space-y-4">
           <Button type="button" onClick={onCompare} disabled={isComparing} loading={isComparing}>
-            {isComparing ? 'Comparing...' : 'Compare Versions'}
+            <span className="inline-flex items-center gap-2">
+              {isComparing && <Spinner size="sm" />}
+              {isComparing ? 'Comparing...' : 'Compare Versions'}
+            </span>
           </Button>
 
           {comparisonResult ? (

@@ -5,6 +5,7 @@ import type {
 
 import { Button } from '../../../components/shared/ui/Button'
 import { EmptyState } from '../../../components/shared/EmptyState'
+import { Spinner } from '../../../components/shared/ui/Spinner'
 
 interface PerspectiveExplorerPanelProps {
   hasActiveVersion: boolean
@@ -71,7 +72,10 @@ export function PerspectiveExplorerPanel({
           </div>
 
           <Button type="button" onClick={onExplore} disabled={isExploring} loading={isExploring}>
-            {isExploring ? 'Exploring...' : 'Explore Perspective'}
+            <span className="inline-flex items-center gap-2">
+              {isExploring && <Spinner size="sm" />}
+              {isExploring ? 'Exploring...' : 'Explore Perspective'}
+            </span>
           </Button>
 
           {perspectiveResult ? (

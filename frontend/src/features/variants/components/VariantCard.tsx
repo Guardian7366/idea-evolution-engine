@@ -1,5 +1,6 @@
 import type { IdeaVariantItem } from '../../../types/idea'
 import { Button } from '../../../components/shared/ui/Button'
+import { Spinner } from '../../../components/shared/ui/Spinner'
 
 interface VariantCardProps {
   variant: IdeaVariantItem
@@ -31,7 +32,10 @@ export function VariantCard({
           disabled={isSelecting}
           loading={isSelecting}
         >
-          {isSelecting ? 'Selecting...' : 'Select Variant'}
+          <span className="inline-flex items-center gap-2">
+            {isSelecting && <Spinner size="sm" />}
+            {isSelecting ? 'Selecting...' : 'Select Variant'}
+          </span>
         </Button>
       </div>
     </article>

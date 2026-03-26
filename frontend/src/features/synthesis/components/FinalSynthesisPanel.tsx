@@ -1,6 +1,7 @@
 import type { FinalSynthesisResult } from '../../../types/idea'
 import { Button } from '../../../components/shared/ui/Button'
 import { EmptyState } from '../../../components/shared/EmptyState'
+import { Spinner } from '../../../components/shared/ui/Spinner'
 
 interface FinalSynthesisPanelProps {
   hasActiveVersion: boolean
@@ -34,7 +35,10 @@ export function FinalSynthesisPanel({
             disabled={isGenerating}
             loading={isGenerating}
           >
-            {isGenerating ? 'Generating...' : 'Generate Final Synthesis'}
+            <span className="inline-flex items-center gap-2">
+              {isGenerating && <Spinner size="sm" />}
+              {isGenerating ? 'Generating...' : 'Generate Final Synthesis'}
+            </span>
           </Button>
 
           {synthesisResult ? (

@@ -1,4 +1,6 @@
 import { Button } from '../../../components/shared/ui/Button'
+import { TextArea } from '../../../components/shared/ui/TextArea'
+import { Spinner } from '../../../components/shared/ui/Spinner'
 
 interface IdeaInputSectionProps {
   ideaInput: string
@@ -23,7 +25,7 @@ export function IdeaInputSection({
       </p>
 
       <div className="mt-4 space-y-4">
-        <textarea
+        <TextArea
           value={ideaInput}
           onChange={(event) => onIdeaInputChange(event.target.value)}
           placeholder="Describe your idea..."
@@ -36,7 +38,10 @@ export function IdeaInputSection({
           disabled={isLoading || ideaInput.trim().length < 3}
           loading={isLoading}
         >
-          {isLoading ? 'Generating...' : 'Generate Variants'}
+          <span className="inline-flex items-center gap-2">
+            {isLoading && <Spinner size="sm" />}
+            {isLoading ? 'Generating...' : 'Generate Variants'}
+          </span>
         </Button>
 
         {errorMessage ? (

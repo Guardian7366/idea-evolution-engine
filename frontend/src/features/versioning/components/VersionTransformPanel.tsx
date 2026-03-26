@@ -1,5 +1,7 @@
 import { Button } from '../../../components/shared/ui/Button'
 import { EmptyState } from '../../../components/shared/EmptyState'
+import { TextArea } from '../../../components/shared/ui/TextArea'
+import { Spinner } from '../../../components/shared/ui/Spinner'
 
 interface VersionTransformPanelProps {
   hasActiveVersion: boolean
@@ -30,11 +32,11 @@ export function VersionTransformPanel({
         </EmptyState>
       ) : (
         <div className="mt-4 space-y-4">
-          <textarea
+          <TextArea
             value={transformInstruction}
             onChange={(event) => onInstructionChange(event.target.value)}
             placeholder="Example: Make the idea clearer and easier to execute for a first MVP."
-            className="min-h-[120px] w-full rounded-lg border border-slate-300 p-3 outline-none focus:border-slate-500"
+            variant='secondary'
           />
 
           <Button
@@ -43,7 +45,10 @@ export function VersionTransformPanel({
             disabled={isTransforming || transformInstruction.trim().length < 3}
             loading={isTransforming}
           >
-            {isTransforming ? 'Refining...' : 'Refine Active Version'}
+            <span className="inline-flex items-center gap-2">
+              {isTransforming && <Spinner size="sm" />}
+              {isTransforming ? 'Refining...' : 'Refine Active Version'}
+            </span>
           </Button>
         </div>
       )}
