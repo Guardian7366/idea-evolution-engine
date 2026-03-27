@@ -25,7 +25,6 @@ Flujo general de cualquier método en este servicio:
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
 from app.domain.entities.session import Session
 from app.domain.repositories.session_repository import SessionRepository
 from app.domain.rules.session_rules import SessionRules
@@ -35,8 +34,6 @@ from app.domain.value_objects.session_status import SessionStatus
 # Cuando el equipo actualice sessions.py para aceptar título como parámetro,
 # simplemente se deja de usar esta constante y se pasa el valor recibido.
 DEFAULT_SESSION_TITLE = "Nueva sesión"
-
-router = APIRouter()
 
 
 class SessionService:

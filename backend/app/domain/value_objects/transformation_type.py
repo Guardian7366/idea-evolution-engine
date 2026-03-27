@@ -3,31 +3,46 @@ from enum import Enum
 
 class TransformationType(str, Enum):
     """
-    Value Object que representa el tipo de transformación aplicada a una idea.
-    Cada tipo guía al motor de IA sobre qué clase de evolución realizar.
+    Value Object que clasifica el tipo de transformación aplicada a una idea.
+    Hereda de str para ser serializable directamente a JSON.
+
+    IMPORTANTE: Estos valores están alineados con el DTO de la API (version_dto.py).
+    El Literal del DTO es: "selection" | "evolve" | "refine" | "mutate".
+    Si el DTO cambia sus valores, este enum debe actualizarse también.
+
+    - SELECTION : La versión se creó porque el usuario seleccionó una variante
+                  del conjunto inicial generado por la IA.
+    - EVOLVE    : Evolución general de la idea hacia una dirección nueva.
+                  Equivale conceptualmente a una expansión o mutación suave.
+    - REFINE    : Mejora iterativa que mantiene la esencia original de la idea.
+                  Ajusta detalles sin cambiar la dirección general.
+    - MUTATE    : Cambio profundo en la naturaleza o enfoque de la idea.
+                  Es la transformación más radical de las cuatro.
     """
-    # Genera variantes divergentes de la idea original
-    MUTATION = "mutation"
+    SELECTION = "selection"
+    EVOLVE = "evolve"
+    REFINE = "refine"
+    MUTATE = "mutate"
 
-    # Refina la idea enfocándola o mejorando su claridad
-    REFINEMENT = "refinement"
-
-    # Combina elementos de múltiples variantes en una síntesis
-    SYNTHESIS = "synthesis"
-
-    # Explora el opuesto o contraste de la idea
-    INVERSION = "inversion"
-
-    # Amplía el alcance o escala de la idea
-    EXPANSION = "expansion"
-
-    def requires_variants(self) -> bool:
+    def is_structural(self) -> bool:
         """
-        Indica si el tipo de transformación necesita variantes previas
-        como input (no puede aplicarse sobre una idea vacía).
+        Retorna True si la transformación altera la estructura de la idea
+        de forma profunda (no solo su contenido superficial).
         """
-        return self in {TransformationType.SYNTHESIS}
+        return self in {TransformationType.MUTATE, TransformationType.EVOLVE}
 
-    def is_divergent(self) -> bool:
-        """Indica si la transformación produce múltiples variantes."""
-        return self in {TransformationType.MUTATION, TransformationType.EXPANSION}
+    def is_incremental(self) -> bool:
+        """
+        Retorna True si la transformación es un ajuste iterativo sobre la idea base.
+        """
+        return self in {TransformationType.REFINE, TransformationType.SELECTION}
+
+    def label(self) -> str:
+        """Nombre legible en español para mostrar en UI o logs."""
+        labels = {
+            TransformationType.SELECTION: "Selección",
+            TransformationType.EVOLVE:    "Evolución",
+            TransformationType.REFINE:    "Refinamiento",
+            TransformationType.MUTATE:    "Mutación",
+        }
+        return labels[self]
