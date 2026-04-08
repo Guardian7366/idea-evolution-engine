@@ -17,6 +17,8 @@ Nota sobre el singleton del mock:
 - Esto garantiza que todos los endpoints compartan el mismo "storage" en memoria.
 - Si se instanciara dentro de get_session_service(), cada request tendría
   su propio store vacío y las sesiones no persistirían entre llamadas.
+  
+  Hola soy Juan
 """
 
 from fastapi import Depends
