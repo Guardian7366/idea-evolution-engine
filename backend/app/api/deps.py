@@ -19,11 +19,14 @@ Nota sobre el singleton del mock:
   su propio store vacío y las sesiones no persistirían entre llamadas.
 """
 
+from fastapi import Depends
+
 from app.application.services.session_service import SessionService
 from app.infrastructure.repositories.mock_session_repository import MockSessionRepository
 from app.application.services.version_service import VersionService
 from app.infrastructure.repositories.mock_version_repository import MockVersionRepository
 from app.infrastructure.repositories.mock_idea_repository import MockIdeaRepository
+from app.application.services.idea_service import IdeaService
 
 # Instancia única del mock compartida entre todos los requests.
 # Reemplazar por la implementación real cuando esté lista.
@@ -70,3 +73,27 @@ def get_version_service() -> VersionService:
     """
     return VersionService(_mock_version_repo, _mock_idea_repo)
  
+def get_idea_service(
+    session_service: SessionService = Depends(get_session_service),
+    version_service: VersionService = Depends(get_version_service),
+) -> IdeaService:
+    """
+    Proveedor de IdeaService para inyección de dependencias en FastAPI.
+ 
+    Reutiliza el _mock_idea_repo que ya existe en deps.py del Día 4.
+    Si no lo tienes, agrégalo:
+        _mock_idea_repo = MockIdeaRepository()
+ 
+    Uso en endpoints:
+        @router.post("")
+        async def create_idea(
+            payload: IdeaCreateRequest,
+            service: IdeaService = Depends(get_idea_service),
+        ): ...
+    """
+    return IdeaService(
+        idea_repository=_mock_idea_repo,
+        session_service=session_service,
+        version_service=version_service,
+    )
+
