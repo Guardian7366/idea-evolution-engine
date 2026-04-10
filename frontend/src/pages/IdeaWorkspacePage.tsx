@@ -7,9 +7,17 @@ import { VariantsList } from '../features/variants/components/VariantsList'
 import { ActiveVersionPanel } from '../features/versioning/components/ActiveVersionPanel'
 import { VersionTransformPanel } from '../features/versioning/components/VersionTransformPanel'
 import { useIdeaFlow } from '../hooks/useIdeaFlow'
+import { IdeaHistorySidebar } from '../features/session/components/IdeaHistorySidebar'
+import { useState } from 'react'
 
 export function IdeaWorkspacePage() {
+
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+
   const {
+    ideasHistory,
+    activeIdeaId,
+    handleSelectHistoryIdea,
     ideaInput,
     sessionId,
     ideaId,
@@ -40,7 +48,24 @@ export function IdeaWorkspacePage() {
   } = useIdeaFlow()
 
   return (
+    <>
+      <IdeaHistorySidebar
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        ideas={ideasHistory}
+        activeIdeaId={activeIdeaId}
+        onSelectIdea={(ideaId) => {
+          handleSelectHistoryIdea(ideaId)
+          setIsHistoryOpen(false)
+        }}
+      />
+
     <div className="space-y-8">
+
+      <button type="button" onClick={() => setIsHistoryOpen(true)}>
+          ☰
+        </button>
+
       <IdeaInputSection
         ideaInput={ideaInput}
         isLoading={isLoading}
@@ -95,5 +120,6 @@ export function IdeaWorkspacePage() {
         onGenerate={handleGenerateFinalSynthesis}
       />
     </div>
+    </>
   )
 }

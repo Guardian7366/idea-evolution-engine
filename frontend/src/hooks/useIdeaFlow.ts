@@ -19,6 +19,9 @@ import type {
   PerspectiveType,
   VersionComparisonResult,
 } from '../types/idea'
+import type {
+  IdeaHistoryItem
+} from '../features/session/components/IdeaHistorySidebar'
 
 export function useIdeaFlow() {
   const [ideaInput, setIdeaInput] = useState('')
@@ -29,6 +32,8 @@ export function useIdeaFlow() {
   const [activeVersion, setActiveVersion] = useState<ActiveIdeaVersion | null>(
     null,
   )
+  const [ideasHistory, setIdeasHistory] = useState<IdeaHistoryItem[]>([])
+  const [activeIdeaId, setActiveIdeaId] = useState<string | null>(null)
   const [comparisonResult, setComparisonResult] =
     useState<VersionComparisonResult | null>(null)
   const [selectedPerspective, setSelectedPerspective] =
@@ -89,6 +94,23 @@ export function useIdeaFlow() {
       setSessionId(sessionResponse.session_id)
       setIdeaId(ideaResponse.idea_id)
       setVariants(variantsResponse.variants)
+
+      const trimmedIdea = ideaInput.trim()
+
+      if (trimmedIdea.length < 3) return
+
+      const newIdeaId = crypto.randomUUID()
+
+      setIdeasHistory((prev) => [
+        {
+          ideaId: newIdeaId,
+          input: trimmedIdea,
+          createdAt: new Date().toISOString(),
+        },
+        ...prev,
+      ])
+
+      setActiveIdeaId(newIdeaId)
     } catch (error) {
       console.error('Frontend flow error:', error)
       setErrorMessage(
@@ -97,6 +119,15 @@ export function useIdeaFlow() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleSelectHistoryIdea = (ideaId: string) => {
+    const selectedIdea = ideasHistory.find((idea) => idea.ideaId === ideaId)
+    if (!selectedIdea) return
+
+    setActiveIdeaId(ideaId)
+    setIdeaInput(selectedIdea.input)
+
   }
 
   const handleSelectVariant = async (variantId: string) => {
@@ -288,5 +319,8 @@ export function useIdeaFlow() {
     handleCompareVersions,
     handleExplorePerspective,
     handleGenerateFinalSynthesis,
+    ideasHistory,
+    activeIdeaId,
+    handleSelectHistoryIdea,
   }
 }
