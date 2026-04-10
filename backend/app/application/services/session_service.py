@@ -96,8 +96,6 @@ class SessionService:
         # o en IdeaContent si el título viola las reglas de validación.
         session = Session.create(
             title=resolved_title,
-            description=description,
-            user_id=user_id,
         )
 
         # Persistimos la sesión via repositorio abstracto.
@@ -202,7 +200,7 @@ class SessionService:
         # Usamos la Rule en lugar de llamar session.complete() directamente
         # porque la Rule agrega la validación de ideas mínimas,
         # que la entidad sola no puede verificar sin acceso al repositorio.
-        SessionRules.assert_can_be_completed(session, total_ideas=session.total_ideas)
+        SessionRules.assert_can_be_completed(session, total_ideas = len(session.idea_ids))
 
         session.complete()
         return await self._repo.save(session)
@@ -222,7 +220,7 @@ class SessionService:
     # OPERACIONES DE SOPORTE (usadas por otros servicios)
     # ──────────────────────────────────────────────────────────────────────────
 
-    async def register_idea_added(self, session_id: str) -> Session:
+    async def register_idea_added(self, session_id: str, idea_id: str) -> Session:
         """
         Notifica a la sesión que se agregó una nueva idea.
         Incrementa el contador total_ideas y valida que la sesión sea editable.
@@ -236,9 +234,9 @@ class SessionService:
         """
         session = await self.get_session(session_id)
 
-        # register_new_idea() valida internamente que la sesión sea editable.
+        # add_idea() valida internamente que la sesión sea editable.
         # Si lanza error, es porque la sesión no está en ACTIVE.
-        session.register_new_idea()
+        session.add_idea(idea_id)
 
         return await self._repo.save(session)
 

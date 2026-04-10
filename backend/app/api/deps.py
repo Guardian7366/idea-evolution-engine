@@ -1,101 +1,68 @@
 """
-deps.py — Fragmento relevante para SessionService.
+deps.py — Proveedores de dependencias para FastAPI.
 
-Este fragmento debe agregarse a tu archivo deps.py existente.
-No reemplaces el archivo completo, solo añade estas líneas.
+Este archivo conecta los servicios con los endpoints.
+Cada función get_X_service() le dice a FastAPI cómo construir ese servicio
+cuando un endpoint lo pide con Depends().
 
-¿Qué hace get_session_service?
-- Es la función de inyección de dependencias de FastAPI.
-- Cada vez que un endpoint declara service: SessionService = Depends(get_session_service),
-  FastAPI llama esta función y pasa el resultado al endpoint.
-- Hoy retorna SessionService con el mock en memoria.
-- Cuando exista la BD real, solo se cambia MockSessionRepository
-  por SessionRepositoryImpl(db) aquí, sin tocar el servicio ni los endpoints.
+Estado actual: todos los servicios usan repositorios mock en memoria.
+Cuando la BD real esté lista, solo se cambian las líneas que instancian
+los repositorios — los servicios y endpoints no necesitan cambios.
 
-Nota sobre el singleton del mock:
-- _mock_session_repo se instancia una sola vez al arrancar el servidor.
-- Esto garantiza que todos los endpoints compartan el mismo "storage" en memoria.
-- Si se instanciara dentro de get_session_service(), cada request tendría
-  su propio store vacío y las sesiones no persistirían entre llamadas.
-  
-  Hola soy Juan
+IMPORTANTE: Los objetos _mock_X_repo se crean UNA SOLA VEZ fuera de las funciones.
+Si se crearan dentro de cada función, cada request tendría su propio repositorio
+vacío y los datos no persistirían entre llamadas.
 """
 
 from fastapi import Depends
 
 from app.application.services.session_service import SessionService
-from app.infrastructure.repositories.mock_session_repository import MockSessionRepository
 from app.application.services.version_service import VersionService
-from app.infrastructure.repositories.mock_version_repository import MockVersionRepository
-from app.infrastructure.repositories.mock_idea_repository import MockIdeaRepository
 from app.application.services.idea_service import IdeaService
+from app.infrastructure.repositories.mock_session_repository import MockSessionRepository
+from app.infrastructure.repositories.mock_idea_repository import MockIdeaRepository
+from app.infrastructure.repositories.mock_version_repository import MockVersionRepository
 
-# Instancia única del mock compartida entre todos los requests.
-# Reemplazar por la implementación real cuando esté lista.
+# ── Singletons de repositorios mock ──────────────────────────────────────────
+# Instancias únicas compartidas entre todos los requests mientras el servidor corre.
+# Se pierden al reiniciar el servidor (comportamiento esperado en Semana 1).
+
 _mock_session_repo = MockSessionRepository()
-
-# Singletons compartidos entre todos los requests.
-_mock_version_repo = MockVersionRepository()
 _mock_idea_repo = MockIdeaRepository()
- 
+_mock_version_repo = MockVersionRepository()
 
+
+# ── Proveedores de servicios ──────────────────────────────────────────────────
 
 def get_session_service() -> SessionService:
     """
-    Proveedor de SessionService para inyección de dependencias en FastAPI.
-
-    Uso en endpoints:
-        @router.post("")
-        async def create_session(
-            service: SessionService = Depends(get_session_service),
-        ): ...
-
-    Cuando se implemente la BD real, este método quedará así:
-        def get_session_service(db: AsyncSession = Depends(get_db)) -> SessionService:
-            return SessionService(SessionRepositoryImpl(db))
+    Proveedor de SessionService.
+    Uso en endpoints: service: SessionService = Depends(get_session_service)
     """
     return SessionService(_mock_session_repo)
 
+
 def get_version_service() -> VersionService:
     """
-    Proveedor de VersionService para inyección de dependencias en FastAPI.
- 
-    Uso en endpoints:
-        @router.post("/transform-version")
-        async def transform_version(
-            service: VersionService = Depends(get_version_service),
-        ): ...
- 
-    Cuando la BD real esté lista:
-        def get_version_service(db: AsyncSession = Depends(get_db)) -> VersionService:
-            return VersionService(
-                VersionRepositoryImpl(db),
-                IdeaRepositoryImpl(db),
-            )
+    Proveedor de VersionService.
+    Recibe VersionRepository e IdeaRepository porque necesita ambos:
+    - VersionRepository para persistir versiones.
+    - IdeaRepository para verificar que la idea padre existe.
+
+    Uso en endpoints: service: VersionService = Depends(get_version_service)
     """
     return VersionService(_mock_version_repo, _mock_idea_repo)
- 
+
+
 def get_idea_service(
     session_service: SessionService = Depends(get_session_service),
     version_service: VersionService = Depends(get_version_service),
 ) -> IdeaService:
     """
-    Proveedor de IdeaService para inyección de dependencias en FastAPI.
- 
-    Reutiliza el _mock_idea_repo que ya existe en deps.py del Día 4.
-    Si no lo tienes, agrégalo:
-        _mock_idea_repo = MockIdeaRepository()
- 
-    Uso en endpoints:
-        @router.post("")
-        async def create_idea(
-            payload: IdeaCreateRequest,
-            service: IdeaService = Depends(get_idea_service),
-        ): ...
-    """
-    return IdeaService(
-        idea_repository=_mock_idea_repo,
-        session_service=session_service,
-        version_service=version_service,
-    )
+    Proveedor de IdeaService.
+    Recibe SessionService y VersionService porque los necesita para orquestar el flujo.
+    FastAPI los inyecta automáticamente encadenando los proveedores de arriba.
 
+    Uso en endpoints: service: IdeaService = Depends(get_idea_service)
+    """
+    return IdeaService(_mock_idea_repo, session_service, version_service)
