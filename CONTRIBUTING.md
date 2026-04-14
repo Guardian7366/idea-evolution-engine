@@ -118,7 +118,15 @@ DATABASE_NAME=idea_evolution.db
 
 ---
 
-### 6. Ejecutar backend
+### 6. Inicializar base de datos
+
+```bash
+python -m app.init_db
+```
+
+---
+
+### 7. Ejecutar backend
 
 ```bash
 uvicorn app.main:app --reload
