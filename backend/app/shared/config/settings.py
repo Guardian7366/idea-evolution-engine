@@ -17,14 +17,14 @@ BACKEND_DIR = Path(__file__).resolve().parents[4]
 class Settings(BaseSettings):
     """Central application settings loaded from environment variables."""
 
-    app_name: str = Field(default=os.getenv("APP_NAME"))
-    app_version: str = Field(default=os.getenv("APP_VERSION"))
-    app_env: str = Field(default=os.getenv("APP_ENV"))
-    database_name: str = Field(default=os.getenv("DATABASE_NAME"))
+    app_name: str = Field(default=os.getenv("APP_NAME", "Idea Evolution Engine API"))
+    app_version: str = Field(default=os.getenv("APP_VERSION", "0.1.0"))
+    app_env: str = Field(default=os.getenv("APP_ENV", "development"))
+    database_name: str = Field(default=os.getenv("DATABASE_NAME", "idea_evolution.db"))
 
     # Comma-separated origins are supported automatically by pydantic-settings
     # when provided as a JSON-like list or can be normalized manually if needed.
-    backend_cors_origins: str = Field(default=os.getenv("BACKEND_CORS_ORIGINS"))
+    backend_cors_origins: str = Field(default=os.getenv("BACKEND_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"))
 
     # Ollama LLM configuration
     ollama_base_url: str = Field(default=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))

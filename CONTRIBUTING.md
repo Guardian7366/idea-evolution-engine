@@ -69,11 +69,13 @@ cd backend
 ### 2. Crear el archivo `.env`
 
 ```env
-APP_NAME=Idea Evolution Engine API
+APP_NAME="Idea Evolution Engine API"
 APP_VERSION=0.1.0
 APP_ENV=development
 BACKEND_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 DATABASE_NAME=idea_evolution.db
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5
 ```
 
 ---
