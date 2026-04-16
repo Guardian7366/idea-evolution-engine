@@ -66,7 +66,19 @@ cd backend
 
 ---
 
-### 2. Crear entorno virtual
+### 2. Crear el archivo `.env`
+
+```env
+APP_NAME=Idea Evolution Engine API
+APP_VERSION=0.1.0
+APP_ENV=development
+BACKEND_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+DATABASE_NAME=idea_evolution.db
+```
+
+---
+
+### 3. Crear entorno virtual
 
 ```bash
 python -m venv .venv
@@ -74,7 +86,7 @@ python -m venv .venv
 
 ---
 
-### 3. Activar entorno virtual
+### 4. Activar entorno virtual
 
 #### Windows
 
@@ -90,30 +102,10 @@ source .venv/bin/activate
 
 ---
 
-### 4. Instalar dependencias
+### 5. Instalar dependencias
 
 ```bash
 pip install -r requirements.txt
-```
-
----
-
-### 5. Configurar variables de entorno
-
-Asegúrate de crear el archivo:
-
-```bash
-vim .env
-```
-
-Ejemplo:
-
-```env
-APP_NAME=Idea Evolution Engine API
-APP_VERSION=0.1.0
-APP_ENV=development
-BACKEND_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-DATABASE_NAME=idea_evolution.db
 ```
 
 ---
@@ -144,26 +136,18 @@ cd frontend
 
 ---
 
-### 2. Instalar dependencias
+### 2. Crear el archivo `.env`
 
-```bash
-npm install
+```env
+VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
 ```
 
 ---
 
-### 3. Configurar variables de entorno
-
-Asegúrate de crear el archivo:
+### 3. Instalar dependencias
 
 ```bash
-vim .env
-```
-
-Contenido:
-
-```env
-VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
+npm install
 ```
 
 ---
