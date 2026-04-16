@@ -9,6 +9,8 @@ class SelectVariantRequest(BaseModel):
     session_id: str = Field(..., min_length=1, description="Parent session ID")
     idea_id: str = Field(..., min_length=1, description="Parent idea ID")
     variant_id: str = Field(..., min_length=1, description="Selected variant ID")
+    variant_title: str = Field(..., min_length=1, description="Title of the selected variant")
+    variant_content: str = Field(..., min_length=1, description="Content of the selected variant")
 
 
 class SelectVariantResponse(BaseModel):

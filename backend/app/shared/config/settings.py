@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     # when provided as a JSON-like list or can be normalized manually if needed.
     backend_cors_origins: str = Field(default=os.getenv("BACKEND_CORS_ORIGINS"))
 
+    # Ollama LLM configuration
+    ollama_base_url: str = Field(default=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
+    ollama_model: str = Field(default=os.getenv("OLLAMA_MODEL", "qwen2.5"))
+
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
         env_file_encoding="utf-8",

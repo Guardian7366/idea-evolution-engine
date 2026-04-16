@@ -1,11 +1,7 @@
 """
-version_service.py — Servicio de aplicación para IdeaVersions.
+version_service.py — Application service for IdeaVersions.
 
-Alineado con las entidades reales del proyecto:
-- IdeaVersion: create_initial(), create_from_variant(), mark_analyzed(), mark_selected(), supersede()
-- VersionRules: can_start_analysis(), can_select_variant(), can_create_next_version(), get_latest_version()
-- Las versiones se guardan en su propio repositorio (VersionRepository), separado de Idea.
-- La Idea real NO tiene lista de versiones — son entidades independientes.
+Manages the full lifecycle of idea versions including AI-powered transformations.
 
 Flujo de estados de una versión:
     DRAFT → ANALYZED → SELECTED → SUPERSEDED
@@ -18,29 +14,32 @@ from app.domain.entities.idea_variant import IdeaVariant
 from app.domain.repositories.idea_repository import IdeaRepository
 from app.domain.repositories.version_repository import VersionRepository
 from app.domain.rules.version_rules import VersionRules
+from app.domain.value_objects.idea_content import IdeaContent
 from app.domain.value_objects.transformation_type import TransformationType
+from app.infrastructure.ai.ollama_provider import OllamaProvider
 
 
 class VersionService:
     """
-    Servicio que gestiona el ciclo de vida de las versiones de una idea.
+    Manages the lifecycle of idea versions.
 
-    Recibe dos repositorios:
-    - VersionRepository: para persistir y buscar versiones.
-    - IdeaRepository: para verificar que la idea padre existe antes de crear versiones.
+    Receives three dependencies:
+    - VersionRepository: persist and retrieve versions.
+    - IdeaRepository: verify the parent idea exists before creating versions.
+    - OllamaProvider: generate AI-powered transformation content.
     """
 
     def __init__(
         self,
         version_repository: VersionRepository,
         idea_repository: IdeaRepository,
+        ollama_provider: OllamaProvider,
     ) -> None:
         self._version_repo = version_repository
         self._idea_repo = idea_repository
+        self._provider = ollama_provider
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # CREAR VERSIONES
-    # ──────────────────────────────────────────────────────────────────────────
+    # ── CREATE VERSIONS ───────────────────────────────────────────────────────
 
     async def create_initial_version(
         self,
@@ -48,18 +47,7 @@ class VersionService:
         title: str,
         description: str,
     ) -> IdeaVersion:
-        """
-        Crea la primera versión (v1) de una idea recién creada.
-
-        Usa IdeaVersion.create_initial() que genera la versión con:
-        - version_number = 1
-        - status = DRAFT
-        - parent_version_id = None
-
-        Si lanza "idea no encontrada": idea_service no persistió la idea
-        antes de llamar este método. Revisa el orden en idea_service.create_idea().
-        """
-        # Verificamos que la idea padre existe.
+        """Create the first version (v1) of a newly created idea."""
         idea = await self._idea_repo.get_by_id(idea_id)
         if idea is None:
             raise ValueError(
@@ -67,7 +55,6 @@ class VersionService:
                 "Verifica que idea_service haya persistido la idea primero."
             )
 
-        # Verificamos el límite de versiones por idea.
         existing = await self._version_repo.get_by_idea_id(idea_id)
         if not VersionRules.can_create_next_version(existing):
             raise ValueError(
@@ -90,22 +77,12 @@ class VersionService:
         selected_variant: IdeaVariant,
     ) -> IdeaVersion:
         """
-        Crea una nueva versión a partir de una variante seleccionada.
-
-        Usa IdeaVersion.create_from_variant() que:
-        - Toma el contenido de la variante seleccionada como base.
-        - Incrementa el version_number automáticamente.
-        - Guarda referencia a la versión padre.
-
-        También marca la versión padre como SUPERSEDED.
-
-        Si lanza "versión padre no encontrada": el parent_version_id es incorrecto.
+        Create a new version from a selected variant.
+        Also marks the parent version as SUPERSEDED.
         """
         parent_version = await self._version_repo.get_by_id(parent_version_id)
         if parent_version is None:
-            raise ValueError(
-                f"La versión padre '{parent_version_id}' no existe."
-            )
+            raise ValueError(f"La versión padre '{parent_version_id}' no existe.")
 
         existing = await self._version_repo.get_by_idea_id(idea_id)
         if not VersionRules.can_create_next_version(existing):
@@ -114,31 +91,66 @@ class VersionService:
                 "Genera una síntesis final antes de seguir iterando."
             )
 
-        # Creamos la nueva versión a partir de la variante seleccionada.
         new_version = IdeaVersion.create_from_variant(
             idea_id=idea_id,
             parent_version=parent_version,
             selected_variant=selected_variant,
         )
 
-        # Marcamos la versión padre como SUPERSEDED — fue reemplazada.
         parent_version.supersede()
         await self._version_repo.save(parent_version)
 
         return await self._version_repo.save(new_version)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # OBTENER VERSIONES
-    # ──────────────────────────────────────────────────────────────────────────
+    # ── AI TRANSFORM (called by idea_service) ─────────────────────────────────
+
+    async def ai_transform(
+        self,
+        idea_id: str,
+        parent_version_id: str,
+        instruction: str,
+        transformation_type: TransformationType,
+    ) -> IdeaVersion:
+        """
+        AI-powered transformation: calls Ollama to generate new content,
+        builds the IdeaVariant, creates the new version, and advances its pipeline.
+
+        This is the method that owns 'version_service → transformaciones'.
+        """
+        current_version = await self.get_version(idea_id, parent_version_id)
+
+        # Call Ollama to generate the transformed content.
+        ai_result = await self._provider.transform_version(
+            current_title=current_version.content.title,
+            current_content=current_version.content.description,
+            transformation_type=transformation_type.value,
+            instruction=instruction,
+        )
+
+        # Build the IdeaVariant from the AI output.
+        transform_variant = IdeaVariant.create(
+            version_id=current_version.id,
+            title=ai_result["title"],
+            description=ai_result["content"],
+            transformation_type=transformation_type,
+        )
+
+        # Create the new version (also supersedes the parent).
+        new_version = await self.create_version_from_transformation(
+            idea_id=idea_id,
+            parent_version_id=parent_version_id,
+            selected_variant=transform_variant,
+        )
+
+        # Advance the pipeline: DRAFT → ANALYZED → SELECTED.
+        await self.mark_analyzed(idea_id, new_version.id)
+        updated_version = await self.mark_selected(idea_id, new_version.id)
+
+        return updated_version
+
+    # ── GET VERSIONS ──────────────────────────────────────────────────────────
 
     async def get_version(self, idea_id: str, version_id: str) -> IdeaVersion:
-        """
-        Retorna una versión específica de una idea.
-        Lanza ValueError si no existe.
-
-        Recibe idea_id además de version_id para ser explícito sobre
-        a qué idea pertenece la versión que buscamos.
-        """
         version = await self._version_repo.get_by_id(version_id)
         if version is None or version.idea_id != idea_id:
             raise ValueError(
@@ -147,47 +159,26 @@ class VersionService:
         return version
 
     async def get_latest_version(self, idea_id: str) -> Optional[IdeaVersion]:
-        """
-        Retorna la versión más reciente de una idea, o None si no tiene versiones.
-        Usa VersionRules.get_latest_version() para determinar cuál es la más reciente.
-        """
         versions = await self._version_repo.get_by_idea_id(idea_id)
         return VersionRules.get_latest_version(versions)
 
     async def get_all_versions(self, idea_id: str) -> list[IdeaVersion]:
-        """
-        Retorna todas las versiones de una idea ordenadas por version_number.
-        Usado por generate_final_synthesis para saber cuántas iteraciones hubo.
-        """
         versions = await self._version_repo.get_by_idea_id(idea_id)
         return sorted(versions, key=lambda v: v.version_number)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # AVANCE DE ESTADOS
-    # ──────────────────────────────────────────────────────────────────────────
+    # ── STATE TRANSITIONS ─────────────────────────────────────────────────────
 
     async def mark_analyzed(self, idea_id: str, version_id: str) -> IdeaVersion:
-        """
-        Avanza la versión de DRAFT → ANALYZED.
-        Llama version.mark_analyzed() que valida la transición internamente.
-        Si falla, la versión no estaba en DRAFT.
-        """
         version = await self.get_version(idea_id, version_id)
         version.mark_analyzed()
         return await self._version_repo.save(version)
 
     async def mark_selected(self, idea_id: str, version_id: str) -> IdeaVersion:
-        """
-        Avanza la versión de ANALYZED → SELECTED.
-        Si falla, la versión no estaba en ANALYZED todavía.
-        """
         version = await self.get_version(idea_id, version_id)
         version.mark_selected()
         return await self._version_repo.save(version)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # VARIANTES
-    # ──────────────────────────────────────────────────────────────────────────
+    # ── VARIANTS ──────────────────────────────────────────────────────────────
 
     async def add_variant_to_version(
         self,
@@ -195,23 +186,11 @@ class VersionService:
         version_id: str,
         variant: IdeaVariant,
     ) -> IdeaVersion:
-        """
-        Agrega una variante generada a una versión específica.
-        Después de agregar todas las variantes, se llama mark_analyzed()
-        para indicar que el proceso terminó.
-        """
         version = await self.get_version(idea_id, version_id)
         version.add_variant(variant)
         return await self._version_repo.save(version)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # UTILIDADES
-    # ──────────────────────────────────────────────────────────────────────────
+    # ── UTILITIES ─────────────────────────────────────────────────────────────
 
     async def assert_version_exists(self, idea_id: str, version_id: str) -> IdeaVersion:
-        """
-        Verifica que una versión existe y la retorna.
-        Método utilitario para otros servicios que necesitan validar
-        el version_id antes de operar.
-        """
         return await self.get_version(idea_id, version_id)
