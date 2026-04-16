@@ -143,10 +143,17 @@ export function useIdeaFlow() {
     setSynthesisResult(null)
 
     try {
+      const variant = variants.find((v: IdeaVariantItem) => v.variant_id === variantId)
+      if (!variant) {
+        setErrorMessage('Selected variant not found.')
+        return
+      }
       const response = await selectVariant({
         session_id: sessionId,
         idea_id: ideaId,
         variant_id: variantId,
+        variant_title: variant.title,
+        variant_content: variant.content,
       })
 
       // The selected variant becomes both the base version and current active version.

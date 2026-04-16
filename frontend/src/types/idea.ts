@@ -62,6 +62,8 @@ export interface SelectVariantRequest {
   session_id: string
   idea_id: string
   variant_id: string
+  variant_title: string
+  variant_content: string
 }
 
 export interface SelectVariantResponse {
