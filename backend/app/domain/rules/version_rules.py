@@ -9,7 +9,8 @@ class VersionRules:
     Reglas de negocio para el ciclo de vida y flujo de evolución de IdeaVersions.
 
     ¿Qué problema resuelven?
-    Una IdeaVersion avanza por varios estados (DRAFT → ANALYZING → ANALYZED → SELECTED → SYNTHESIZED).
+    Una IdeaVersion avanza por el flujo actual:
+    DRAFT → ANALYZED → SELECTED → SUPERSEDED.
     Estas rules validan si una versión está en el estado correcto para cada operación,
     y si el contexto global (ej: número de versiones existentes) lo permite.
 
@@ -22,31 +23,26 @@ class VersionRules:
     # sugerir al usuario que cierre el ciclo en lugar de seguir iterando.
     MAX_VERSIONS_PER_IDEA = 10
 
+
     @staticmethod
     def can_start_analysis(version: IdeaVersion) -> bool:
         """
         Determina si una versión puede iniciar el proceso de análisis por IA.
 
-        Regla: la versión debe estar en estado DRAFT.
-        Si está en cualquier otro estado, el análisis ya fue iniciado o completado.
-
-        Si retorna False para una versión recién creada, revisar que
-        IdeaVersion.create() efectivamente inicializa el status en DRAFT.
+        Regla:
+        solo versiones en estado DRAFT pueden pasar a ANALYZED.
         """
-        return version.status.is_ready_for_analysis()
+        return version.status == VersionStatus.DRAFT
 
     @staticmethod
     def can_select_variant(version: IdeaVersion) -> bool:
         """
         Determina si la versión está lista para que el usuario seleccione una variante.
 
-        Regla: la versión debe estar en estado ANALYZED.
-        No se puede seleccionar una variante si el análisis no ha terminado.
-
-        Si retorna False aunque la IA ya procesó la versión,
-        revisar que analysis_service.py esté llamando version.advance_status(ANALYZED).
+        Regla:
+        solo versiones en estado ANALYZED pueden pasar a SELECTED.
         """
-        return version.status.is_ready_for_selection()
+        return version.status == VersionStatus.ANALYZED
 
     @staticmethod
     def can_create_next_version(existing_versions: List[IdeaVersion]) -> bool:

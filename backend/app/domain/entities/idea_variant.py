@@ -28,10 +28,17 @@ class IdeaVariant:
         title: str,
         description: str,
         transformation_type: TransformationType,
+        variant_id: str | None = None,  # ✅ nuevo
     ) -> "IdeaVariant":
-        """Factory method. Crea una variante nueva asociada a una versión."""
+        """
+        Factory method. Crea una variante nueva asociada a una versión.
+
+        IMPORTANTE:
+        Permite recibir variant_id externo (desde IA/frontend)
+        para mantener trazabilidad consistente en todo el sistema.
+        """
         return cls(
-            id=str(uuid4()),
+            id=variant_id if variant_id is not None else str(uuid4()),
             version_id=version_id,
             content=IdeaContent(title=title, description=description),
             transformation_type=transformation_type,

@@ -23,6 +23,26 @@ import type {
   IdeaHistoryItem
 } from '../features/session/components/IdeaHistorySidebar'
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  // Intentamos leer el mensaje real del backend si viene en error.response.data.detail
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'response' in error &&
+    typeof (error as any).response === 'object' &&
+    (error as any).response !== null &&
+    'data' in (error as any).response &&
+    typeof (error as any).response.data === 'object' &&
+    (error as any).response.data !== null &&
+    'detail' in (error as any).response.data &&
+    typeof (error as any).response.data.detail === 'string'
+  ) {
+    return (error as any).response.data.detail
+  }
+
+  return fallback
+}
+
 export function useIdeaFlow() {
   const [ideaInput, setIdeaInput] = useState('')
   const [sessionId, setSessionId] = useState('')
@@ -72,6 +92,7 @@ export function useIdeaFlow() {
     setPerspectiveResult(null)
     setSynthesisResult(null)
     setTransformInstruction('')
+    setActiveIdeaId(null)
 
     try {
       // Step 1: create session
@@ -95,26 +116,30 @@ export function useIdeaFlow() {
       setIdeaId(ideaResponse.idea_id)
       setVariants(variantsResponse.variants)
 
-      const trimmedIdea = ideaInput.trim()
+      const trimmedIdea = normalizedIdeaInput
 
       if (trimmedIdea.length < 3) return
 
-      const newIdeaId = crypto.randomUUID()
+      // ✅ Usamos el idea_id REAL del backend, no uno fake
+      const realIdeaId = ideaResponse.idea_id
 
       setIdeasHistory((prev) => [
         {
-          ideaId: newIdeaId,
+          ideaId: realIdeaId,
           input: trimmedIdea,
           createdAt: new Date().toISOString(),
         },
         ...prev,
       ])
 
-      setActiveIdeaId(newIdeaId)
+      setActiveIdeaId(realIdeaId)
     } catch (error) {
       console.error('Frontend flow error:', error)
       setErrorMessage(
-        'Failed to connect with backend API. Check browser console for details.',
+        getErrorMessage(
+          error,
+          'Failed to connect with backend API. Check browser console for details.',
+        ),
       )
     } finally {
       setIsLoading(false)
@@ -125,14 +150,40 @@ export function useIdeaFlow() {
     const selectedIdea = ideasHistory.find((idea) => idea.ideaId === ideaId)
     if (!selectedIdea) return
 
+    // IMPORTANTE:
+    // Este historial todavía es local y NO reconstruye el flujo real desde backend.
+    // Por eso, al seleccionar una idea del historial:
+    // 1. cargamos su texto en el input
+    // 2. limpiamos el flujo visual actual para evitar inconsistencias
     setActiveIdeaId(ideaId)
     setIdeaInput(selectedIdea.input)
 
+    setSessionId('')
+    setIdeaId('')
+    setVariants([])
+    setBaseVersion(null)
+    setActiveVersion(null)
+    setComparisonResult(null)
+    setPerspectiveResult(null)
+    setSynthesisResult(null)
+    setTransformInstruction('')
+    setErrorMessage('')
   }
 
   const handleSelectVariant = async (variantId: string) => {
     if (!sessionId || !ideaId) {
       setErrorMessage('Session and idea must exist before selecting a variant.')
+      return
+    }
+    // IMPORTANTE:
+    // Buscamos la variante real seleccionada para enviar también
+    // su título y contenido al backend.
+    const selectedVariant = variants.find(
+      (variant) => variant.variant_id === variantId,
+    )
+
+    if (!selectedVariant) {
+      setErrorMessage('Selected variant was not found in the current flow.')
       return
     }
 
@@ -147,6 +198,8 @@ export function useIdeaFlow() {
         session_id: sessionId,
         idea_id: ideaId,
         variant_id: variantId,
+        variant_title: selectedVariant.title,
+        variant_content: selectedVariant.content,
       })
 
       // The selected variant becomes both the base version and current active version.
@@ -156,7 +209,10 @@ export function useIdeaFlow() {
     } catch (error) {
       console.error('Variant selection error:', error)
       setErrorMessage(
-        'Failed to select variant. Check browser console for details.',
+        getErrorMessage(
+          error,
+          'Failed to select variant. Check browser console for details.',
+        ),
       )
     } finally {
       setIsSelectingVariant(false)
@@ -196,7 +252,10 @@ export function useIdeaFlow() {
     } catch (error) {
       console.error('Version transformation error:', error)
       setErrorMessage(
-        'Failed to transform version. Check browser console for details.',
+        getErrorMessage(
+          error,
+          'Failed to transform version. Check browser console for details.',
+        ),
       )
     } finally {
       setIsTransformingVersion(false)
@@ -229,7 +288,10 @@ export function useIdeaFlow() {
     } catch (error) {
       console.error('Version comparison error:', error)
       setErrorMessage(
-        'Failed to compare versions. Check browser console for details.',
+        getErrorMessage(
+          error,
+          'Failed to compare versions. Check browser console for details.',
+        ),
       )
     } finally {
       setIsComparingVersions(false)
@@ -257,7 +319,10 @@ export function useIdeaFlow() {
     } catch (error) {
       console.error('Perspective exploration error:', error)
       setErrorMessage(
-        'Failed to explore perspective. Check browser console for details.',
+        getErrorMessage(
+          error,
+          'Failed to explore perspective. Check browser console for details.',
+        ),
       )
     } finally {
       setIsExploringPerspective(false)
@@ -284,7 +349,10 @@ export function useIdeaFlow() {
     } catch (error) {
       console.error('Final synthesis generation error:', error)
       setErrorMessage(
-        'Failed to generate final synthesis. Check browser console for details.',
+        getErrorMessage(
+          error,
+          'Failed to generate final synthesis. Check browser console for details.',
+        ),
       )
     } finally {
       setIsGeneratingSynthesis(false)

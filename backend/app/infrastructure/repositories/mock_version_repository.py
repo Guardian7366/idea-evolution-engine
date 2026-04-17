@@ -45,10 +45,23 @@ class MockVersionRepository(VersionRepository):
         return versions[-1] if versions else None
 
     async def get_by_status(self, session_id: str, status: VersionStatus) -> List[IdeaVersion]:
-        return [
-            v for v in self._store.values()
-            if v.session_id == session_id and v.status == status
-        ]
+        """
+        ⚠️ IMPORTANTE:
+        Este método NO es compatible con el modelo actual.
+
+        IdeaVersion NO tiene session_id, solo idea_id.
+        Para poder filtrar por sesión, se necesitaría:
+        1. Acceso a IdeaRepository para mapear idea_id → session_id
+        2. O agregar session_id a IdeaVersion (decisión de dominio)
+
+        Por ahora este método se deshabilita explícitamente para evitar errores silenciosos.
+        """
+
+        raise NotImplementedError(
+            "get_by_status no está soportado con el modelo actual de IdeaVersion. "
+            "Debe rediseñarse junto con persistencia real en Semana 2."
+        )
+            
 
     async def get_next_version_number(self, idea_id: str) -> int:
         """

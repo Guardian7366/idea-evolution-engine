@@ -12,6 +12,10 @@ Each method builds the correct prompt, calls LLMClient.chat(), and passes
 the raw response through the corresponding mapper.
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 from app.application.dto.comparison_dto import VersionComparisonResult
 from app.application.dto.perspective_dto import PerspectiveAnalysisResult
 from app.application.dto.synthesis_dto import FinalSynthesisResult
@@ -60,7 +64,8 @@ class OllamaProvider:
                 user=build_variant_user_prompt(initial_prompt),
             )
             return map_variants(raw)
-        except Exception:
+        except Exception as e:
+            logger.error(f"[OllamaProvider] Error generando variantes: {str(e)}")
             return map_variants("{}")
 
     # ── version_service ───────────────────────────────────────────────────────
@@ -106,7 +111,8 @@ class OllamaProvider:
                 user=build_comparison_user_prompt(title_a, content_a, title_b, content_b),
             )
             return map_comparison(raw)
-        except Exception:
+        except Exception as e:
+            logger.error(f"[OllamaProvider] Error comparando versiones: {str(e)}")
             return map_comparison("{}")
 
     async def explore_perspective(
@@ -122,9 +128,10 @@ class OllamaProvider:
                 user=build_perspective_user_prompt(perspective_type, title, content),
             )
             return map_perspective(raw, perspective_type)
-        except Exception:
+        except Exception as e:
+            logger.error(f"[OllamaProvider] Error explorando perspectiva: {str(e)}")
             return map_perspective("{}", perspective_type)
-
+        
     # ── synthesis_service ─────────────────────────────────────────────────────
 
     async def generate_synthesis(
@@ -146,5 +153,6 @@ class OllamaProvider:
                 ),
             )
             return map_synthesis(raw, total_versions)
-        except Exception:
+        except Exception as e:
+            logger.error(f"[OllamaProvider] Error generando síntesis: {str(e)}")
             return map_synthesis("{}", total_versions)

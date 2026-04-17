@@ -61,8 +61,15 @@ def map_variants(raw_json: str) -> list[IdeaVariantItem]:
                 )
             )
 
-        # Guarantee exactly 3 variants with the right types
-        return result[:3] if len(result) >= 3 else _FALLBACK_VARIANTS
+        # Garantiza exactamente 3 variantes combinando IA + fallback
+        if len(result) >= 3:
+            return result[:3]
+
+        # Si faltan variantes, completar con fallback sin perder las reales
+        needed = 3 - len(result)
+        fallback_extra = _FALLBACK_VARIANTS[:needed]
+
+        return result + fallback_extra
 
     except (json.JSONDecodeError, AttributeError, TypeError):
         return _FALLBACK_VARIANTS

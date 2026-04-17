@@ -43,6 +43,14 @@ class AnalysisService:
         Fetches both versions from the repository to get their real content,
         then sends them to the AI provider for comparison.
         """
+        # IMPORTANTE:
+        # El backend también valida que no se compare una versión consigo misma.
+        # No debemos depender solo del frontend para esta regla.
+        if payload.version_id_a == payload.version_id_b:
+            raise ValueError(
+                "No se puede comparar una versión consigo misma. "
+                "Selecciona dos versiones diferentes."
+            )
         version_a = await self._version_repo.get_by_id(payload.version_id_a)
         if version_a is None or version_a.idea_id != payload.idea_id:
             raise ValueError(

@@ -197,10 +197,9 @@ class SessionService:
         """
         session = await self.get_session(session_id)
 
-        # Usamos la Rule en lugar de llamar session.complete() directamente
-        # porque la Rule agrega la validación de ideas mínimas,
-        # que la entidad sola no puede verificar sin acceso al repositorio.
-        SessionRules.assert_can_be_completed(session, total_ideas = len(session.idea_ids))
+        # IMPORTANTE:
+        # La regla ahora toma la verdad directamente desde session.idea_ids.
+        SessionRules.assert_can_be_completed(session)
 
         session.complete()
         return await self._repo.save(session)

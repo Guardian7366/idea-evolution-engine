@@ -28,7 +28,7 @@ class SessionRules:
         Una sesión PAUSED, COMPLETED o ARCHIVED no debe aceptar ideas nuevas.
 
         Si esta regla retorna False y el servicio igual intenta crear una idea,
-        session.register_new_idea() lanzará un ValueError como segunda línea de defensa.
+        session.add_idea() lanzará un ValueError como segunda línea de defensa.
         Se recomienda llamar esta rule ANTES de intentar la operación.
         """
         return session.status.is_editable()
@@ -38,13 +38,14 @@ class SessionRules:
         """
         Determina si la sesión puede marcarse como completada.
 
-        Regla: debe tener al menos una idea registrada.
-        No tiene sentido completar una sesión vacía; probablemente es un error del cliente.
-
-        Si esto falla y el usuario sí creó ideas, revisar si session.total_ideas
-        se está incrementando correctamente en session_service.py al crear ideas.
+        IMPORTANTE:
+        En el modelo actual no existe session.total_ideas.
+        La fuente real de verdad es session.idea_ids.
         """
-        return session.total_ideas > 0 and session.status.can_transition_to(SessionStatus.COMPLETED)
+        return (
+            len(session.idea_ids) > 0
+            and session.status.can_transition_to(SessionStatus.COMPLETED)
+        )
 
     @staticmethod
     def can_be_archived(session: Session) -> bool:

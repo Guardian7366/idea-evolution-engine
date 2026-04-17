@@ -34,10 +34,15 @@ class Idea:
     def update_content(self, title: Optional[str] = None, description: Optional[str] = None) -> None:
         """
         Actualiza el contenido de la idea.
-        Al ser IdeaContent un Value Object inmutable, se genera una nueva instancia.
+
+        IMPORTANTE:
+        No se permite modificar una idea archivada.
         """
+        self.ensure_editable()
+
         new_title = title if title is not None else self.content.title
         new_description = description if description is not None else self.content.description
+
         self.content = IdeaContent(title=new_title, description=new_description)
         self.updated_at = datetime.now(timezone.utc)
 

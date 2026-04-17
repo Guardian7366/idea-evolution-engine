@@ -34,9 +34,16 @@ class MockIdeaRepository(IdeaRepository):
         return [i for i in self._store.values() if i.session_id == session_id]
 
     async def get_active_by_session_id(self, session_id: str) -> List[Idea]:
+        """
+        Retorna las ideas activas de una sesión.
+
+        IMPORTANTE:
+        En el modelo actual de Idea no existe is_active.
+        La idea se considera "activa" mientras NO esté archivada.
+        """
         return [
             i for i in self._store.values()
-            if i.session_id == session_id and i.is_active
+            if i.session_id == session_id and not i.is_archived
         ]
 
     async def delete(self, idea_id: str) -> bool:

@@ -162,8 +162,12 @@ class IdeaService:
             title=payload.variant_title,
             description=payload.variant_content,
             transformation_type=TransformationType.SELECTION,
+            variant_id=payload.variant_id,  # ✅ usamos el ID real
         )
 
+        # IMPORTANTE:
+        # Se utiliza el variant_id generado por la IA/frontend
+        # para mantener consistencia en todo el flujo.
         await self._version_service.mark_analyzed(payload.idea_id, latest_version.id)
         await self._version_service.add_variant_to_version(payload.idea_id, latest_version.id, variant)
         updated_version = await self._version_service.mark_selected(payload.idea_id, latest_version.id)

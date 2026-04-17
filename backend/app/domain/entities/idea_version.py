@@ -50,18 +50,36 @@ class IdeaVersion:
         Factory: crea una nueva versión a partir de una variante seleccionada.
         El número de versión se incrementa automáticamente.
         """
+        # IMPORTANTE:
+        # Se clona el contenido para evitar referencias compartidas entre versiones.
+        # Cada versión debe ser inmutable respecto a otras.
         return cls(
             id=str(uuid4()),
             idea_id=idea_id,
             version_number=parent_version.version_number + 1,
-            content=selected_variant.content,
+            # Creamos una copia para evitar mutaciones accidentales
+            content=IdeaContent(
+                title=selected_variant.content.title,
+                description=selected_variant.content.description,
+            ),
             status=VersionStatus.DRAFT,
             parent_version_id=parent_version.id,
             created_at=datetime.now(timezone.utc),
         )
 
     def add_variant(self, variant: IdeaVariant) -> None:
-        """Agrega una variante generada a esta versión."""
+        """
+        Agrega una variante generada a esta versión.
+
+        IMPORTANTE:
+        Solo se permite agregar variantes en estado DRAFT o ANALYZED.
+        Evita inconsistencias si la versión ya fue seleccionada o reemplazada.
+        """
+        if self.status not in (VersionStatus.DRAFT, VersionStatus.ANALYZED):
+            raise ValueError(
+                f"No se pueden agregar variantes a una versión en estado '{self.status}'."
+            )
+
         self.variants.append(variant)
 
     def mark_analyzed(self) -> None:
