@@ -15,26 +15,15 @@ from app.application.services.synthesis_service import SynthesisService
 from app.application.services.version_service import VersionService
 from app.infrastructure.ai.llm_client import get_llm_client
 from app.infrastructure.ai.ollama_provider import OllamaProvider
-from app.infrastructure.repositories.mock_idea_repository import MockIdeaRepository
-from app.infrastructure.repositories.mock_session_repository import MockSessionRepository
-from app.infrastructure.repositories.mock_version_repository import MockVersionRepository
+from app.infrastructure.repositories.idea_repository_impl import IdeaRepository
+from app.infrastructure.repositories.session_repository_impl import SessionRepository
+from app.infrastructure.repositories.version_repository_impl import VersionRepository
 
 # ── Repository singletons ─────────────────────────────────────────────────────
 
-# IMPORTANTE:
-# Esta sección permite cambiar fácilmente entre mock y DB real en Semana 2+
-# Sin tocar el resto del sistema.
-
-USE_MOCK_REPOS = True  # ⚠️ Backend 1 cambiará esto en el futuro
-
-if USE_MOCK_REPOS:
-    _session_repo = MockSessionRepository()
-    _idea_repo = MockIdeaRepository()
-    _version_repo = MockVersionRepository()
-else:
-    # Placeholder para repositorios reales (SQLite)
-    # Backend 1 / Backend 2 implementarán esto
-    raise NotImplementedError("Repositorios reales aún no implementados")
+_session_repo = SessionRepository()
+_idea_repo = IdeaRepository()
+_version_repo = VersionRepository()
 
 # ── AI provider singleton ─────────────────────────────────────────────────────
 _ollama_provider = OllamaProvider(get_llm_client())

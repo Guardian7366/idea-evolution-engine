@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import json
 
 
 @dataclass(frozen=True)
@@ -25,3 +26,10 @@ class IdeaContent:
     def with_description(self, new_description: str) -> "IdeaContent":
         """Retorna un nuevo IdeaContent con la descripción actualizada."""
         return IdeaContent(title=self.title, description=new_description)
+    
+    def __str__(self) -> str:
+        """Representación del contenido en JSON"""
+        return json.dumps({
+            "title": self.title,
+            "description": self.description
+        }, ensure_ascii=False)

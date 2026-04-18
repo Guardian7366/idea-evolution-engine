@@ -24,6 +24,7 @@ class IdeaVersion:
     status: VersionStatus
     parent_version_id: Optional[str]
     created_at: datetime
+    updated_at: datetime
     variants: list[IdeaVariant] = field(default_factory=list)
 
     @classmethod
@@ -37,6 +38,7 @@ class IdeaVersion:
             status=VersionStatus.DRAFT,
             parent_version_id=None,
             created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
 
     @classmethod
@@ -65,6 +67,7 @@ class IdeaVersion:
             status=VersionStatus.DRAFT,
             parent_version_id=parent_version.id,
             created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
 
     def add_variant(self, variant: IdeaVariant) -> None:

@@ -30,6 +30,10 @@ class Idea:
             created_at=now,
             updated_at=now,
         )
+    
+    def get_content(self) -> str:
+        """Retorna el contenido de la idea como un string formateado."""
+        return str(self.content)
 
     def update_content(self, title: Optional[str] = None, description: Optional[str] = None) -> None:
         """
