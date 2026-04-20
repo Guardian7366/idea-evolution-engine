@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Literal, Optional
 from uuid import uuid4
 
 from app.domain.value_objects.version_status import VersionStatus
@@ -17,26 +17,30 @@ class IdeaVersion(DateHelper):
     El historial de versiones conforma la "evolución" de la idea.
     """
     id: str
+    session_id: str
     idea_id: str
     version_number: int
     title: str
     content: str
     status: VersionStatus
+    is_active: Literal[0, 1]
     parent_version_id: Optional[str]
     created_at: datetime
     updated_at: datetime
     variants: list[IdeaVariant] = field(default_factory=list)
 
     @classmethod
-    def create_initial(cls, idea_id: str, title: str, content: str) -> "IdeaVersion":
+    def create_initial(cls, session_id: str, idea_id: str, title: str, content: str) -> "IdeaVersion":
         """Factory: crea la primera versión de una idea (v1, sin parent)."""
         return cls(
             id=str(uuid4()),
+            session_id=session_id,
             idea_id=idea_id,
             version_number=1,
             title=title,
             content=content,
             status=VersionStatus.DRAFT,
+            is_active=1,
             parent_version_id=None,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),

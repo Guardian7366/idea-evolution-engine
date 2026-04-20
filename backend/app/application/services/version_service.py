@@ -62,6 +62,7 @@ class VersionService:
             )
 
         version = IdeaVersion.create_initial(
+            session_id=idea.session_id,
             idea_id=idea_id,
             title=title,
             content=content,

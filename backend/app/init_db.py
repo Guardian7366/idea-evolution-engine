@@ -58,6 +58,7 @@ cursor.execute("""
     CREATE TABLE IF NOT EXISTS idea_versions (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,
+        idea_id TEXT NOT NULL,
         source_variant_id TEXT,
         parent_version_id TEXT,
         version_number INTEGER NOT NULL,
@@ -69,6 +70,7 @@ cursor.execute("""
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY (session_id) REFERENCES sessions(id),
+        FOREIGN KEY (idea_id) REFERENCES ideas(id),
         FOREIGN KEY (source_variant_id) REFERENCES idea_variants(id),
         FOREIGN KEY (parent_version_id) REFERENCES idea_versions(id)
     )
