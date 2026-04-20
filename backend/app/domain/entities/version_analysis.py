@@ -3,9 +3,11 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import uuid4
 
+from app.domain.entities import DateHelper
+
 
 @dataclass
-class VersionAnalysis:
+class VersionAnalysis(DateHelper):
     """
     Entidad que representa el análisis generado por la IA sobre una IdeaVersion específica.
 

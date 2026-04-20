@@ -1,6 +1,11 @@
 import sqlite3
+import os
 
 from app.shared.config import settings
+
+# Restart database
+if os.path.exists(settings.database_name):
+    os.remove(settings.database_name)
 
 conn = sqlite3.connect(settings.database_name)
 cursor = conn.cursor()

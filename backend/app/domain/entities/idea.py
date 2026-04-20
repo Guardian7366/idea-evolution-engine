@@ -3,8 +3,10 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
+from app.domain.entities import DateHelper
+
 @dataclass
-class Idea:
+class Idea(DateHelper):
     """
     Entidad raíz del dominio. Representa una idea en su estado más puro,
     sin versiones ni variantes aún — solo el concepto central del usuario.

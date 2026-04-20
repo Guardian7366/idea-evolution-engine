@@ -3,9 +3,11 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from uuid import uuid4
 
+from app.domain.entities import DateHelper
+
 
 @dataclass
-class VersionComparison:
+class VersionComparison(DateHelper):
     """
     Entidad que representa la comparación entre dos versiones de una misma idea.
 

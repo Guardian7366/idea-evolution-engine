@@ -3,9 +3,11 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import uuid4
 
+from app.domain.entities import DateHelper
+
 
 @dataclass
-class FinalSynthesis:
+class FinalSynthesis(DateHelper):
     """
     Entidad que representa la síntesis final generada al cerrar el ciclo evolutivo de una idea.
 

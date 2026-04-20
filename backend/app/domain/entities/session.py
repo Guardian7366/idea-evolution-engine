@@ -3,10 +3,11 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.domain.value_objects.session_status import SessionStatus
+from app.domain.entities import DateHelper
 
 
 @dataclass
-class Session:
+class Session(DateHelper):
     """
     Entidad que representa una sesión de evolución de ideas.
     Una sesión agrupa todas las ideas que el usuario trabaja en

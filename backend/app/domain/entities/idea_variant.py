@@ -3,10 +3,11 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.domain.value_objects.transformation_type import TransformationType
+from app.domain.entities import DateHelper
 
 
 @dataclass
-class IdeaVariant:
+class IdeaVariant(DateHelper):
     """
     Entidad que representa una variante generada de una idea.
     Una variante es el resultado de aplicar una transformación

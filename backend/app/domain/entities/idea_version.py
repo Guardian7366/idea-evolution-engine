@@ -5,10 +5,11 @@ from uuid import uuid4
 
 from app.domain.value_objects.version_status import VersionStatus
 from app.domain.entities.idea_variant import IdeaVariant
+from app.domain.entities import DateHelper
 
 
 @dataclass
-class IdeaVersion:
+class IdeaVersion(DateHelper):
     """
     Entidad que representa una versión específica de una idea.
     Cada vez que una idea evoluciona (por selección de variante,
