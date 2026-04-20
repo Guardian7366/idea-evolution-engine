@@ -93,7 +93,7 @@ class IdeaService:
         idea = Idea.create(
             session_id=payload.session_id,
             title=title,
-            description=payload.initial_prompt,
+            content=payload.initial_prompt,
         )
         persisted_idea = await self._idea_repo.save(idea)
 
@@ -104,7 +104,7 @@ class IdeaService:
         await self._version_service.create_initial_version(
             idea_id=persisted_idea.id,
             title=title,
-            description=payload.initial_prompt,
+            content=payload.initial_prompt,
         )
 
         return IdeaCreateResponse(
@@ -160,7 +160,7 @@ class IdeaService:
         variant = IdeaVariant.create(
             version_id=latest_version.id,
             title=payload.variant_title,
-            description=payload.variant_content,
+            content=payload.variant_content,
             transformation_type=TransformationType.SELECTION,
             variant_id=payload.variant_id,  # ✅ usamos el ID real
         )
@@ -222,8 +222,8 @@ class IdeaService:
             version_id=new_version.id,
             idea_id=payload.idea_id,
             session_id=payload.session_id,
-            title=new_version.content.title,
-            content=new_version.content.description,
+            title=new_version.title,
+            content=new_version.content,
             status="active",
             version_number=new_version.version_number,
             parent_version_id=new_version.parent_version_id,

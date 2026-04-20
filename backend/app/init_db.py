@@ -23,6 +23,7 @@ cursor.execute("""
     CREATE TABLE IF NOT EXISTS ideas (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,
+        title TEXT,
         content TEXT NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
@@ -37,6 +38,7 @@ cursor.execute("""
         id TEXT PRIMARY KEY,
         idea_id TEXT NOT NULL,
         label TEXT,
+        title TEXT,
         content TEXT NOT NULL,
         origin_type TEXT NOT NULL CHECK (origin_type IN ('mock', 'ai', 'manual')),
         is_selected INTEGER NOT NULL,

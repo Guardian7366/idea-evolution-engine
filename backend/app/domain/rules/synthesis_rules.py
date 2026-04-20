@@ -65,7 +65,7 @@ class SynthesisRules:
 
         Reglas:
           - Debe tener un título refinado no vacío.
-          - Debe tener una descripción refinada no vacía.
+          - Debe tener un contenido refinado no vacío.
           - Debe tener al menos una perspectiva clave O al menos un paso en el plan de acción.
 
         Una síntesis que pase estas reglas es apta para mostrarse al usuario.
@@ -75,9 +75,9 @@ class SynthesisRules:
         de que el prompt exige explícitamente perspectivas clave y plan de acción.
         """
         has_title = bool(synthesis.refined_title and synthesis.refined_title.strip())
-        has_description = bool(synthesis.refined_description and synthesis.refined_description.strip())
-        has_content = len(synthesis.key_perspectives) > 0 or len(synthesis.action_plan) > 0
-        return has_title and has_description and has_content
+        has_content = bool(synthesis.refined_content and synthesis.refined_content.strip())
+        has_synthesis = len(synthesis.key_perspectives) > 0 or len(synthesis.action_plan) > 0
+        return has_title and has_content and has_synthesis
 
     @staticmethod
     def assert_can_synthesize(version: IdeaVersion) -> None:
@@ -115,6 +115,6 @@ class SynthesisRules:
         if not SynthesisRules.is_valid_synthesis(synthesis):
             raise ValueError(
                 f"La síntesis generada para la idea '{synthesis.idea_id}' está incompleta. "
-                "Debe tener título, descripción y al menos una perspectiva o paso de acción. "
+                "Debe tener título, contenido y al menos una perspectiva o paso de acción. "
                 "Revisar synthesis_prompts.py y synthesis_mapper.py en la capa de infraestructura."
             )

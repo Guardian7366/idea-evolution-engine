@@ -54,9 +54,9 @@ class FinalSynthesis:
     # Si siempre es igual al título original, revisar synthesis_prompts.py.
     refined_title: str
 
-    # Descripción consolidada y pulida de la idea en su mejor versión.
+    # Contenido consolidado y pulido de la idea en su mejor versión.
     # Este es el campo más importante de la síntesis para el usuario.
-    refined_description: str
+    refined_content: str
 
     # Número de versiones que se iteraron antes de llegar a esta síntesis.
     # Útil para mostrar al usuario cuánto evolucionó su idea.
@@ -95,7 +95,7 @@ class FinalSynthesis:
         idea_id: str,
         best_version_id: str,
         refined_title: str,
-        refined_description: str,
+        refined_content: str,
         total_versions_iterated: int,
         final_score: float,
         key_perspectives: List[str],
@@ -120,9 +120,9 @@ class FinalSynthesis:
                 "Revisar synthesis_prompts.py y synthesis_mapper.py."
             )
 
-        if not refined_description or not refined_description.strip():
+        if not refined_content or not refined_content.strip():
             raise ValueError(
-                "refined_description no puede estar vacío en una síntesis final. "
+                "refined_content no puede estar vacío en una síntesis final. "
                 "Revisar synthesis_prompts.py y synthesis_mapper.py."
             )
 
@@ -144,7 +144,7 @@ class FinalSynthesis:
             idea_id=idea_id,
             best_version_id=best_version_id,
             refined_title=refined_title,
-            refined_description=refined_description,
+            refined_content=refined_content,
             total_versions_iterated=total_versions_iterated,
             final_score=final_score,
             key_perspectives=key_perspectives,

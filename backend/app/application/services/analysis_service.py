@@ -64,10 +64,10 @@ class AnalysisService:
             )
 
         comparison = await self._provider.compare_versions(
-            title_a=version_a.content.title,
-            content_a=version_a.content.description,
-            title_b=version_b.content.title,
-            content_b=version_b.content.description,
+            title_a=version_a.title,
+            content_a=version_a.content,
+            title_b=version_b.title,
+            content_b=version_b.content,
         )
 
         return CompareVersionsResponse(
@@ -94,8 +94,8 @@ class AnalysisService:
 
         analysis = await self._provider.explore_perspective(
             perspective_type=payload.perspective_type,
-            title=version.content.title,
-            content=version.content.description,
+            title=version.title,
+            content=version.content,
         )
 
         return ExplorePerspectiveResponse(

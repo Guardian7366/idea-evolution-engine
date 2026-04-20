@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from app.domain.value_objects.idea_content import IdeaContent
 from app.domain.value_objects.transformation_type import TransformationType
 
 
@@ -16,7 +15,8 @@ class IdeaVariant:
     """
     id: str
     version_id: str
-    content: IdeaContent
+    title: str
+    content: str
     transformation_type: TransformationType
     is_selected: bool
     created_at: datetime
@@ -26,7 +26,7 @@ class IdeaVariant:
         cls,
         version_id: str,
         title: str,
-        description: str,
+        content: str,
         transformation_type: TransformationType,
         variant_id: str | None = None,  # ✅ nuevo
     ) -> "IdeaVariant":
@@ -40,7 +40,8 @@ class IdeaVariant:
         return cls(
             id=variant_id if variant_id is not None else str(uuid4()),
             version_id=version_id,
-            content=IdeaContent(title=title, description=description),
+            title=title,
+            content=content,
             transformation_type=transformation_type,
             is_selected=False,
             created_at=datetime.now(timezone.utc),

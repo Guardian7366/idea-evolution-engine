@@ -66,7 +66,7 @@ class SessionService:
     async def create_session(
         self,
         title: Optional[str] = None,
-        description: Optional[str] = None,
+        content: Optional[str] = None,
         user_id: Optional[str] = None,
     ) -> Session:
         """
@@ -77,7 +77,7 @@ class SessionService:
           se usa DEFAULT_SESSION_TITLE ("Nueva sesión").
           Cuando sessions.py acepte título como parámetro de entrada,
           simplemente pásalo aquí y la lógica no cambia.
-        - description: Descripción opcional. Por ahora el endpoint no la envía tampoco.
+        - content: Contenido opcional. Por ahora el endpoint no lo envía tampoco.
         - user_id: Preparado para autenticación futura. Por ahora siempre None.
 
         Retorna: La entidad Session ya persistida (con ID real asignado).
@@ -92,8 +92,6 @@ class SessionService:
 
         # Session.create() es el factory method de la entidad.
         # Genera UUID, timestamps y nace en estado ACTIVE automáticamente.
-        # Si esta línea lanza un error, el problema está en la entidad Session
-        # o en IdeaContent si el título viola las reglas de validación.
         session = Session.create(
             title=resolved_title,
         )

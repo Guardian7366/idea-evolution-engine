@@ -14,7 +14,6 @@ from app.domain.entities.idea_variant import IdeaVariant
 from app.domain.repositories.idea_repository import IdeaRepository
 from app.domain.repositories.version_repository import VersionRepository
 from app.domain.rules.version_rules import VersionRules
-from app.domain.value_objects.idea_content import IdeaContent
 from app.domain.value_objects.transformation_type import TransformationType
 from app.infrastructure.ai.ollama_provider import OllamaProvider
 
@@ -45,7 +44,7 @@ class VersionService:
         self,
         idea_id: str,
         title: str,
-        description: str,
+        content: str,
     ) -> IdeaVersion:
         """Create the first version (v1) of a newly created idea."""
         idea = await self._idea_repo.get_by_id(idea_id)
@@ -65,7 +64,7 @@ class VersionService:
         version = IdeaVersion.create_initial(
             idea_id=idea_id,
             title=title,
-            description=description,
+            content=content,
         )
 
         return await self._version_repo.save(version)
@@ -121,8 +120,8 @@ class VersionService:
 
         # Call Ollama to generate the transformed content.
         ai_result = await self._provider.transform_version(
-            current_title=current_version.content.title,
-            current_content=current_version.content.description,
+            current_title=current_version.title,
+            current_content=current_version.content,
             transformation_type=transformation_type.value,
             instruction=instruction,
         )
@@ -131,7 +130,7 @@ class VersionService:
         transform_variant = IdeaVariant.create(
             version_id=current_version.id,
             title=ai_result["title"],
-            description=ai_result["content"],
+            content=ai_result["content"],
             transformation_type=transformation_type,
         )
 

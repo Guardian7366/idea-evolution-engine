@@ -3,9 +3,6 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
-from app.domain.value_objects.idea_content import IdeaContent
-
-
 @dataclass
 class Idea:
     """
@@ -14,28 +11,26 @@ class Idea:
     """
     id: str
     session_id: str
-    content: IdeaContent
+    title: str
+    content: str
     created_at: datetime
     updated_at: datetime
     is_archived: bool = False
 
     @classmethod
-    def create(cls, session_id: str, title: str, description: str) -> "Idea":
+    def create(cls, session_id: str, title: str, content: str) -> "Idea":
         """Factory method. Único punto de creación de una idea nueva."""
         now = datetime.now(timezone.utc)
         return cls(
             id=str(uuid4()),
             session_id=session_id,
-            content=IdeaContent(title=title, description=description),
+            title=title,
+            content=content,
             created_at=now,
             updated_at=now,
         )
-    
-    def get_content(self) -> str:
-        """Retorna el contenido de la idea como un string formateado."""
-        return str(self.content)
 
-    def update_content(self, title: Optional[str] = None, description: Optional[str] = None) -> None:
+    def update_content(self, title: Optional[str] = None, content: Optional[str] = None) -> None:
         """
         Actualiza el contenido de la idea.
 
@@ -44,10 +39,8 @@ class Idea:
         """
         self.ensure_editable()
 
-        new_title = title if title is not None else self.content.title
-        new_description = description if description is not None else self.content.description
-
-        self.content = IdeaContent(title=new_title, description=new_description)
+        self.title = title if title is not None else self.title
+        self.content = content if content is not None else self.content
         self.updated_at = datetime.now(timezone.utc)
 
     def archive(self) -> None:

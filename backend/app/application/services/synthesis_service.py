@@ -56,9 +56,9 @@ class SynthesisService:
         total_versions = len(all_versions)
 
         synthesis = await self._provider.generate_synthesis(
-            original_prompt=idea.content.description,
-            final_title=version.content.title,
-            final_content=version.content.description,
+            original_prompt=idea.content,
+            final_title=version.title,
+            final_content=version.content,
             total_versions=total_versions,
         )
 
