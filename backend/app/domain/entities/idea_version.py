@@ -24,6 +24,7 @@ class IdeaVersion(DateHelper):
     content: str
     status: VersionStatus
     is_active: Literal[0, 1]
+    source_variant_id: Optional[str]
     parent_version_id: Optional[str]
     created_at: datetime
     updated_at: datetime
@@ -41,6 +42,7 @@ class IdeaVersion(DateHelper):
             content=content,
             status=VersionStatus.DRAFT,
             is_active=1,
+            source_variant_id=None,
             parent_version_id=None,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -67,6 +69,8 @@ class IdeaVersion(DateHelper):
             title=selected_variant.title,
             content=selected_variant.content,
             status=VersionStatus.DRAFT,
+            is_active=1,
+            source_variant_id=selected_variant.id,
             parent_version_id=parent_version.id,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
