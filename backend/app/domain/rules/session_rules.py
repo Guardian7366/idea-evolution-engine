@@ -1,98 +1,67 @@
+"""
+session_rules.py — Reglas de negocio para el ciclo de vida de una Session.
+
+¿Por qué existe este archivo separado de la entidad Session?
+- La entidad Session conoce su propio estado interno.
+- SessionRules conoce las POLÍTICAS del negocio que pueden cambiar con el tiempo.
+- Así podemos cambiar una regla sin tocar la entidad, y testear las reglas solas.
+
+¿Quién usa estas reglas?
+- session_service.py las llama antes de ejecutar operaciones sensibles.
+- Si una regla falla, el servicio lanza un error que la API convierte en HTTP 400/409.
+
+Regla de diseño: estos métodos NUNCA modifican nada. Solo validan.
+"""
+
 from app.domain.entities.session import Session
-from app.domain.value_objects.session_status import SessionStatus
 
 
 class SessionRules:
-    """
-    Reglas de negocio puras para el ciclo de vida de una Session.
-
-    ¿Por qué una clase de rules separada y no poner esto en la entidad?
-    Las entidades conocen su propio estado (ej: "puedo transicionar a X").
-    Las rules conocen el contexto más amplio (ej: "¿tiene ideas? ¿hay versiones abiertas?").
-    Separar esto evita que Session.py crezca indefinidamente y mezcle
-    responsabilidades de estado con responsabilidades de negocio.
-
-    Quién usa estas rules: session_service.py, antes de ejecutar operaciones
-    que requieren validación de contexto, no solo de estado.
-
-    Nota: todos los métodos son estáticos porque las rules no tienen estado propio.
-    Son funciones de validación puras que reciben datos y retornan bool o lanzan excepciones.
-    """
-
-    @staticmethod
-    def can_add_idea(session: Session) -> bool:
-        """
-        Determina si se puede agregar una nueva idea a la sesión.
-
-        Regla: solo sesiones ACTIVE permiten nuevas ideas.
-        Una sesión PAUSED, COMPLETED o ARCHIVED no debe aceptar ideas nuevas.
-
-        Si esta regla retorna False y el servicio igual intenta crear una idea,
-        session.add_idea() lanzará un ValueError como segunda línea de defensa.
-        Se recomienda llamar esta rule ANTES de intentar la operación.
-        """
-        return session.status.is_editable()
-
-    @staticmethod
-    def can_be_completed(session: Session) -> bool:
-        """
-        Determina si la sesión puede marcarse como completada.
-
-        IMPORTANTE:
-        En el modelo actual no existe session.total_ideas.
-        La fuente real de verdad es session.idea_ids.
-        """
-        return (
-            len(session.idea_ids) > 0
-            and session.status.can_transition_to(SessionStatus.COMPLETED)
-        )
-
-    @staticmethod
-    def can_be_archived(session: Session) -> bool:
-        """
-        Determina si la sesión puede archivarse.
-
-        El archivado es el estado terminal: una sesión archivada no puede reabrirse.
-        Solo se permite archivar desde PAUSED o COMPLETED, no desde ACTIVE directamente,
-        para evitar perder trabajo en progreso por error.
-
-        Si un usuario intenta archivar una sesión activa con trabajo en curso,
-        el sistema debe pedirle que primero la pause o complete.
-        """
-        return session.status.can_transition_to(SessionStatus.ARCHIVED)
-
-    @staticmethod
-    def validate_title(title: str) -> None:
-        """
-        Valida que el título de una sesión cumpla las restricciones de negocio.
-
-        Lanza ValueError con mensaje descriptivo si la validación falla.
-        Centralizar aquí evita duplicar esta lógica en el endpoint y en el servicio.
-
-        Si los usuarios reportan errores de validación confusos,
-        los mensajes de error están aquí y son fáciles de ajustar.
-        """
-        if not title or not title.strip():
-            raise ValueError("El título de la sesión no puede estar vacío.")
-        if len(title.strip()) < 3:
-            raise ValueError("El título de la sesión debe tener al menos 3 caracteres.")
-        if len(title.strip()) > 150:
-            raise ValueError("El título de la sesión no puede superar los 150 caracteres.")
 
     @staticmethod
     def assert_is_editable(session: Session) -> None:
         """
-        Versión imperativa de can_add_idea: lanza excepción si la sesión no es editable.
+        Verifica que la sesión está activa y puede recibir cambios.
 
-        Usar este método en servicios donde el flujo debe detenerse si la sesión
-        no está disponible para edición, en lugar de manejar un bool manualmente.
+        Úsala en session_service.assert_session_is_active() para cortar
+        la ejecución inmediatamente si la sesión no es editable.
 
-        Ejemplo de uso en session_service.py:
-            SessionRules.assert_is_editable(session)  # lanza si no es editable
-            idea = Idea.create(...)   # solo llega aquí si la sesión está activa
+        Si lanza error: la sesión está en PAUSED, COMPLETED o ARCHIVED.
         """
         if not session.status.is_editable():
             raise ValueError(
                 f"La sesión '{session.id}' está en estado '{session.status.value}' "
-                f"y no acepta modificaciones. Solo las sesiones ACTIVE son editables."
+                "y no acepta modificaciones. Solo las sesiones ACTIVE pueden editarse."
+            )
+
+    @staticmethod
+    def can_be_completed(session: Session) -> None:
+        """
+        Verifica que una sesión puede marcarse como completada.
+
+        Condiciones:
+        1. La sesión debe estar en ACTIVE.
+        2. Debe tener al menos 1 idea registrada en session.idea_ids.
+
+        ¿Por qué leemos session.idea_ids directamente en lugar de recibir
+        un conteo como parámetro externo?
+        Porque Session ya mantiene esa lista actualizada mediante add_idea().
+        Leer desde la entidad elimina la posibilidad de pasar un conteo incorrecto.
+
+        Si lanza "sin ideas": register_idea_added() en session_service no se llamó
+        correctamente al crear ideas, o las ideas no se persisten bien.
+
+        CAMBIO RESPECTO A SEMANA 1: antes se llamaba assert_can_be_completed y
+        recibía total_ideas: int como parámetro. Ahora lee directamente de la
+        entidad para mayor consistencia.
+        """
+        if session.status.value != "active":
+            raise ValueError(
+                f"Solo se puede completar una sesión ACTIVE. "
+                f"Estado actual: '{session.status.value}'."
+            )
+        if not session.idea_ids:
+            raise ValueError(
+                "No se puede completar una sesión sin al menos una idea registrada. "
+                "Verifica que idea_service esté llamando register_idea_added() correctamente."
             )
