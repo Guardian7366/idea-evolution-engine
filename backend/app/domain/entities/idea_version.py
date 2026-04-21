@@ -64,6 +64,7 @@ class IdeaVersion(DateHelper):
         # Cada versión debe ser inmutable respecto a otras.
         return cls(
             id=str(uuid4()),
+            session_id=parent_version.session_id,
             idea_id=idea_id,
             version_number=parent_version.version_number + 1,
             title=selected_variant.title,

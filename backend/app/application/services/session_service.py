@@ -197,7 +197,7 @@ class SessionService:
 
         # IMPORTANTE:
         # La regla ahora toma la verdad directamente desde session.idea_ids.
-        SessionRules.assert_can_be_completed(session)
+        SessionRules.can_be_completed(session)
 
         session.complete()
         return await self._repo.save(session)

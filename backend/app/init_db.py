@@ -77,11 +77,35 @@ cursor.execute("""
 """)
 
 
-# Ensure only one active version per session
+# Ensure only one active version per session on insert
 cursor.execute("""
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_active_version_per_session
-    ON idea_versions (session_id)
-    WHERE is_active = 1
+    CREATE TRIGGER IF NOT EXISTS trg_one_active_version_per_session_insert
+    AFTER INSERT ON idea_versions
+    WHEN NEW.is_active = 1
+    BEGIN
+        SELECT CASE WHEN (
+            SELECT COUNT(*) FROM idea_versions
+            WHERE session_id = NEW.session_id AND is_active = 1
+        ) > 1 THEN
+            RAISE (ABORT, 'Only one active version per session is allowed.')
+        END;
+    END;
+""")
+
+
+# Ensure only one active version per session on update
+cursor.execute("""
+    CREATE TRIGGER IF NOT EXISTS trg_one_active_version_per_session_update
+    AFTER UPDATE ON idea_versions
+    WHEN NEW.is_active = 1 AND OLD.is_active != 1
+    BEGIN
+        SELECT CASE WHEN (
+            SELECT COUNT(*) FROM idea_versions
+            WHERE session_id = NEW.session_id AND is_active = 1
+        ) > 1 THEN
+            RAISE (ABORT, 'Only one active version per session is allowed.')
+        END;
+    END;
 """)
 
 
