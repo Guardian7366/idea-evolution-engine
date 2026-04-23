@@ -1,3 +1,25 @@
+"""
+synthesis_rules.py — Reglas de negocio para FinalSynthesis.
+
+Aseguran que la síntesis solo se genera cuando el contexto lo justifica
+y que el resultado de la IA es válido antes de persistirlo.
+
+¿Quién usa estas rules?
+synthesis_service.py, antes y después de invocar al modelo de IA.
+
+CORRECCIONES RESPECTO A LA VERSIÓN ANTERIOR: (BORRAR EN LOS SIGUIENTES CAMBIOS)
+
+1. has_enough_iterations() usaba VersionStatus.SYNTHESIZED que NO existe
+   en el VersionStatus real del proyecto (solo hay DRAFT, ANALYZED, SELECTED,
+   SUPERSEDED). Se reemplazó por SUPERSEDED, que es el estado al que llega
+   una versión cuando fue reemplazada por una nueva — lo que equivale a
+   "esta versión ya fue procesada y el flujo siguió adelante".
+
+2. can_synthesize() mencionaba version.mark_variant_selected() en su docstring
+   pero ese método no existe en IdeaVersion. El método real es mark_selected().
+   Se corrigió la referencia en el comentario.
+"""
+
 from typing import List
 
 from app.domain.entities.final_synthesis import FinalSynthesis
@@ -6,73 +28,58 @@ from app.domain.value_objects.version_status import VersionStatus
 
 
 class SynthesisRules:
-    """
-    Reglas de negocio para la generación y validación de síntesis finales.
 
-    ¿Qué problema resuelven?
-    La síntesis es el paso más costoso en términos de tokens de IA y el más
-    valioso para el usuario. Estas rules aseguran que solo se genera síntesis
-    cuando el contexto lo justifica: la versión está lista, la idea tiene
-    suficiente historial evolutivo, y no existe ya una síntesis reciente.
-
-    Quién usa estas rules: synthesis_service.py, antes de invocar al modelo de IA
-    para generar la síntesis final.
-    """
-
-    # Número mínimo de versiones iteradas recomendado antes de sintetizar.
-    # Sintetizar con solo 1 versión es válido pero puede producir resultados poco profundos.
+    # Número mínimo de versiones procesadas recomendado antes de sintetizar.
+    # No bloquea la síntesis — es informativo para mostrar advertencias al usuario.
     # Si el producto decide que 1 iteración es suficiente, bajar este valor a 1.
     RECOMMENDED_MIN_VERSIONS = 2
 
     @staticmethod
     def can_synthesize(version: IdeaVersion) -> bool:
         """
-        Determina si una versión específica está lista para generar síntesis final.
+        ¿Esta versión está lista para generar síntesis final?
 
-        Regla: la versión debe estar en estado SELECTED, lo que significa
-        que el usuario ya eligió la variante ganadora de ese ciclo.
+        La versión debe estar en SELECTED: el usuario ya eligió
+        la variante ganadora de ese ciclo evolutivo.
 
         Si retorna False para una versión que el usuario ya procesó,
-        revisar que version_service.py esté avanzando el estado correctamente
-        al llamar version.mark_variant_selected().
+        revisar que version_service.py esté llamando mark_selected()
+        correctamente después de que el usuario elige una variante.
         """
         return version.status == VersionStatus.SELECTED
 
     @staticmethod
     def has_enough_iterations(versions: List[IdeaVersion]) -> bool:
         """
-        Indica si la idea tiene suficientes versiones iteradas para una síntesis rica.
+        ¿La idea tiene suficientes versiones procesadas para una síntesis rica?
 
-        Este método NO bloquea la síntesis (eso lo hace can_synthesize).
-        Es informativo: el servicio puede usarlo para mostrar una advertencia
-        al usuario si intenta sintetizar demasiado pronto.
+        Este método NO bloquea la síntesis — es informativo.
+        El servicio puede usarlo para registrar un warning si el usuario
+        intenta sintetizar con muy pocas iteraciones.
 
-        Ejemplo de uso en synthesis_service.py:
-            if not SynthesisRules.has_enough_iterations(versions):
-                # Mostrar advertencia, pero no bloquear
-                logger.warning("Síntesis con pocas iteraciones para idea %s", idea_id)
+        CORRECCIÓN: la versión anterior filtraba por SYNTHESIZED que no existe
+        en VersionStatus. Ahora filtramos por SUPERSEDED (versiones que ya fueron
+        reemplazadas por otras nuevas, lo que indica iteración real) más SELECTED
+        (la versión activa actual que está lista para sintetizar).
         """
-        completed_versions = [
+        processed = [
             v for v in versions
-            if v.status in {VersionStatus.SELECTED, VersionStatus.SYNTHESIZED}
+            if v.status in {VersionStatus.SELECTED, VersionStatus.SUPERSEDED}
         ]
-        return len(completed_versions) >= SynthesisRules.RECOMMENDED_MIN_VERSIONS
+        return len(processed) >= SynthesisRules.RECOMMENDED_MIN_VERSIONS
 
     @staticmethod
     def is_valid_synthesis(synthesis: FinalSynthesis) -> bool:
         """
-        Valida que una síntesis generada por la IA tenga el contenido mínimo esperado.
+        ¿La síntesis generada por la IA tiene el contenido mínimo esperado?
 
-        Reglas:
-          - Debe tener un título refinado no vacío.
-          - Debe tener un contenido refinado no vacío.
-          - Debe tener al menos una perspectiva clave O al menos un paso en el plan de acción.
-
-        Una síntesis que pase estas reglas es apta para mostrarse al usuario.
-        Si falla, la IA produjo una síntesis incompleta y el servicio debe reintentar.
+        Condiciones:
+        - Título refinado no vacío.
+        - Contenido refinado no vacío.
+        - Al menos una perspectiva clave O al menos un paso en el plan de acción.
 
         Si falla frecuentemente, revisar synthesis_prompts.py para asegurarse
-        de que el prompt exige explícitamente perspectivas clave y plan de acción.
+        de que el prompt pide explícitamente perspectivas y plan de acción.
         """
         has_title = bool(synthesis.refined_title and synthesis.refined_title.strip())
         has_content = bool(synthesis.refined_content and synthesis.refined_content.strip())
@@ -82,39 +89,31 @@ class SynthesisRules:
     @staticmethod
     def assert_can_synthesize(version: IdeaVersion) -> None:
         """
-        Versión imperativa de can_synthesize: lanza excepción si no se puede sintetizar.
+        Versión "assert" de can_synthesize.
+        Lanza ValueError si la versión no está lista para sintetizar.
 
         Usar en synthesis_service.py como primera validación antes de
-        invocar al modelo de IA (evita gastar tokens si el estado es incorrecto).
-
-        Ejemplo de uso:
-            SynthesisRules.assert_can_synthesize(version)
-            # Solo llega aquí si version.status == SELECTED
-            synthesis = await ai_client.generate_synthesis(...)
+        llamar a la IA — evita gastar tokens si el estado es incorrecto.
         """
         if not SynthesisRules.can_synthesize(version):
             raise ValueError(
                 f"La versión '{version.id}' está en estado '{version.status.value}' "
-                "y no puede sintetizarse. La versión debe estar en estado SELECTED. "
+                "y no puede sintetizarse. Debe estar en SELECTED. "
                 "Verificar que el usuario seleccionó una variante antes de solicitar síntesis."
             )
 
     @staticmethod
     def assert_is_valid(synthesis: FinalSynthesis) -> None:
         """
-        Versión imperativa de is_valid_synthesis: lanza excepción si la síntesis es incompleta.
+        Versión "assert" de is_valid_synthesis.
+        Lanza ValueError si la síntesis generada por la IA está incompleta.
 
-        Usar en synthesis_service.py después de recibir y mapear la respuesta de la IA,
-        antes de persistir la síntesis.
-
-        Ejemplo de uso:
-            synthesis = FinalSynthesis.create(...)
-            SynthesisRules.assert_is_valid(synthesis)  # lanza si está incompleta
-            await synthesis_repository.save(synthesis)  # solo si es válida
+        Usar en synthesis_service.py después de recibir y mapear la respuesta
+        de la IA, antes de persistir la síntesis.
         """
         if not SynthesisRules.is_valid_synthesis(synthesis):
             raise ValueError(
-                f"La síntesis generada para la idea '{synthesis.idea_id}' está incompleta. "
+                f"La síntesis de la idea '{synthesis.idea_id}' está incompleta. "
                 "Debe tener título, contenido y al menos una perspectiva o paso de acción. "
-                "Revisar synthesis_prompts.py y synthesis_mapper.py en la capa de infraestructura."
+                "Revisar synthesis_prompts.py y synthesis_mapper.py en infrastructure/ai/."
             )
