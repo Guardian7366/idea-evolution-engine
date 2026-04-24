@@ -33,25 +33,18 @@ class SessionRepository(SessionRepository):
         return None
 
     @db_wrapper
-    async def get_all(self, limit: int, offset: int, cursor: Cursor) -> List[Session]:
+    async def get_all(
+        self,
+        status: Optional[SessionStatus] = None,
+        limit: int = 50,
+        offset: int = 0,
+        cursor: Cursor = None
+    ) -> List[Session]:
         """Retorna todas las sesiones paginadas, ordenadas por created_at descendente."""
-        cursor.execute("SELECT id, title, status, created_at, updated_at FROM sessions ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
-        rows = cursor.fetchall()
-        return [
-            Session(
-                id=row[0],
-                title=row[1],
-                status=SessionStatus(row[2]),
-                created_at=row[3],
-                updated_at=row[4]
-            )
-            for row in rows
-        ]
-
-    @db_wrapper
-    async def get_by_status(self, status: SessionStatus, cursor: Cursor) -> List[Session]:
-        """Retorna todas las sesiones con un estado específico."""
-        cursor.execute("SELECT id, title, status, created_at, updated_at FROM sessions WHERE status = ?", (status.value,))
+        if status:
+            cursor.execute("SELECT id, title, status, created_at, updated_at FROM sessions WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?", (status.value, limit, offset))
+        else:
+            cursor.execute("SELECT id, title, status, created_at, updated_at FROM sessions ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
         rows = cursor.fetchall()
         return [
             Session(
