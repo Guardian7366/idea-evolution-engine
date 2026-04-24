@@ -1,27 +1,6 @@
-"""
-idea_repository.py — Contrato abstracto para la persistencia de Ideas.
-
-El dominio depende de esta interfaz, nunca de la implementación concreta.
-La implementación real vive en infrastructure/repositories/idea_repository_impl.py
-
-CAMBIOS TAREA 5 (Alineación con persistencia real):
-
-1. delete() ahora retorna bool en lugar de None.
-   La implementación real retorna True/False según si la idea existía.
-   El contrato debe reflejar eso para que los servicios puedan saber
-   si la eliminación tuvo efecto.
-
-2. Se añadió get_active_by_session_id() que ya existe en la implementación
-   pero no estaba en el contrato abstracto. Sin él, la implementación tenía
-   un método huérfano que el dominio no podía usar formalmente.
-
-3. Se añadió exists() por el mismo motivo — ya existe en la impl pero
-   faltaba en el contrato. Útil para validaciones rápidas sin cargar
-   la entidad completa.
-"""
-
 from abc import ABC, abstractmethod
 from typing import List, Optional
+from sqlite3 import Cursor
 
 from app.domain.entities.idea import Idea
 
@@ -34,55 +13,37 @@ class IdeaRepository(ABC):
     """
 
     @abstractmethod
-    async def save(self, idea: Idea) -> Idea:
+    async def save(self, idea: Idea, cursor: Cursor) -> Idea:
         """Persiste una idea nueva o actualiza una existente. Retorna la idea persistida."""
         ...
 
     @abstractmethod
-    async def get_by_id(self, idea_id: str) -> Optional[Idea]:
+    async def get_by_id(self, idea_id: str, cursor: Cursor) -> Optional[Idea]:
         """Retorna una idea por su ID, o None si no existe."""
         ...
 
     @abstractmethod
-    async def get_by_session_id(self, session_id: str) -> List[Idea]:
+    async def get_by_session_id(self, session_id: str, cursor: Cursor) -> List[Idea]:
         """Retorna todas las ideas asociadas a una sesión, incluyendo archivadas."""
         ...
 
     @abstractmethod
-    async def get_active_by_session_id(self, session_id: str) -> List[Idea]:
+    async def get_active_by_session_id(self, session_id: str, cursor: Cursor) -> List[Idea]:
         """
-        Retorna solo las ideas no archivadas de una sesión.
-
-        Diferencia con get_by_session_id():
-        - get_by_session_id() retorna todas, incluyendo is_archived=True.
-        - Este método retorna solo las activas (is_archived=False).
-
-        Usado cuando el frontend necesita mostrar solo ideas trabajables,
-        no el historial completo de la sesión.
+        Retorna solo las ideas no archivadas de una sesión (is_archived=False).
         """
         ...
 
     @abstractmethod
-    async def delete(self, idea_id: str) -> bool:
+    async def delete(self, idea_id: str, cursor: Cursor) -> bool:
         """
-        Elimina una idea por su ID.
-
-        CAMBIO: retorna bool en lugar de None.
-        - True si la idea existía y fue eliminada.
-        - False si no existía (operación sin efecto).
-
-        Permite que el servicio decida si lanzar un error
-        cuando se intenta eliminar algo que no existe.
+        Elimina una idea por su ID. Retorna True si existía y fue eliminada, False si no existía.
         """
         ...
 
     @abstractmethod
-    async def exists(self, idea_id: str) -> bool:
+    async def exists(self, idea_id: str, cursor: Cursor) -> bool:
         """
-        Verifica si una idea existe sin cargarla completa.
-
-        Más eficiente que get_by_id() cuando solo necesitas saber
-        si la idea existe, sin necesitar sus datos.
-        Usado en validaciones previas a operaciones costosas.
+        Verifica si una idea existe sin cargarla completa. Más eficiente que get_by_id().
         """
         ...

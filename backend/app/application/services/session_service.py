@@ -27,6 +27,7 @@ from app.domain.entities.session import Session
 from app.domain.repositories.session_repository import SessionRepository
 from app.domain.rules.session_rules import SessionRules
 from app.domain.value_objects.session_status import SessionStatus
+from app.shared.database import db_wrapper
 
 # Título por defecto cuando el endpoint no recibe uno.
 # Cuando sessions.py acepte título como parámetro, se deja de usar esta constante.
@@ -50,7 +51,8 @@ class SessionService:
     # CREAR SESIÓN
     # ──────────────────────────────────────────────────────────────────────────
 
-    async def create_session(self, title: Optional[str] = None) -> Session:
+    @db_wrapper
+    async def create_session(self, title: Optional[str] = None, **kwargs) -> Session:
         """
         Crea una nueva sesión y la persiste.
 
@@ -66,18 +68,19 @@ class SessionService:
         """
         resolved_title = title.strip() if title and title.strip() else DEFAULT_SESSION_TITLE
         session = Session.create(title=resolved_title)
-        return await self._repo.save(session)
+        return await self._repo.save(session, kwargs["cursor"])
 
     # ──────────────────────────────────────────────────────────────────────────
     # OBTENER SESIONES
     # ──────────────────────────────────────────────────────────────────────────
 
-    async def get_session(self, session_id: str) -> Session:
+    @db_wrapper
+    async def get_session(self, session_id: str, **kwargs) -> Session:
         """
         Retorna una sesión por su ID.
         Lanza ValueError si no existe — el endpoint lo convierte en HTTP 404.
         """
-        session = await self._repo.get_by_id(session_id)
+        session = await self._repo.get_by_id(session_id, kwargs["cursor"])
         if session is None:
             raise ValueError(
                 f"Sesión '{session_id}' no encontrada. "
@@ -85,8 +88,9 @@ class SessionService:
             )
         return session
 
+    @db_wrapper
     async def get_all_sessions(
-        self, status: Optional[SessionStatus] = None
+        self, status: Optional[SessionStatus] = None, **kwargs
     ) -> list[Session]:
         """
         Retorna todas las sesiones, opcionalmente filtradas por estado.
@@ -96,13 +100,14 @@ class SessionService:
         La paginación puede agregarse al repositorio cuando se necesite,
         pero no debe asumirse antes de que exista.
         """
-        return await self._repo.get_all(status=status)
+        return await self._repo.get_all(status=status, cursor=kwargs["cursor"])
 
     # ──────────────────────────────────────────────────────────────────────────
     # CAMBIOS DE ESTADO
     # ──────────────────────────────────────────────────────────────────────────
 
-    async def pause_session(self, session_id: str) -> Session:
+    @db_wrapper
+    async def pause_session(self, session_id: str, **kwargs) -> Session:
         """
         Pausa una sesión activa.
         Si lanza error, la sesión no está en ACTIVE.
@@ -110,18 +115,20 @@ class SessionService:
         """
         session = await self.get_session(session_id)
         session.pause()
-        return await self._repo.save(session)
+        return await self._repo.save(session, kwargs["cursor"])
 
-    async def resume_session(self, session_id: str) -> Session:
+    @db_wrapper
+    async def resume_session(self, session_id: str, **kwargs) -> Session:
         """
         Reanuda una sesión pausada.
         Solo funciona si está en PAUSED.
         """
         session = await self.get_session(session_id)
         session.resume()
-        return await self._repo.save(session)
+        return await self._repo.save(session, kwargs["cursor"])
 
-    async def complete_session(self, session_id: str) -> Session:
+    @db_wrapper
+    async def complete_session(self, session_id: str, **kwargs) -> Session:
         """
         Marca una sesión como completada.
 
@@ -136,22 +143,24 @@ class SessionService:
         # La rule lee directamente de session.idea_ids — no necesita parámetros extra.
         SessionRules.can_be_completed(session)
         session.complete()
-        return await self._repo.save(session)
+        return await self._repo.save(session, kwargs["cursor"])
 
-    async def archive_session(self, session_id: str) -> Session:
+    @db_wrapper
+    async def archive_session(self, session_id: str, **kwargs) -> Session:
         """
         Archiva una sesión. Puede archivarse desde PAUSED o COMPLETED.
         No puede archivarse una sesión ACTIVE directamente.
         """
         session = await self.get_session(session_id)
         session.archive()
-        return await self._repo.save(session)
+        return await self._repo.save(session, kwargs["cursor"])
 
     # ──────────────────────────────────────────────────────────────────────────
     # SOPORTE PARA OTROS SERVICIOS
     # ──────────────────────────────────────────────────────────────────────────
 
-    async def register_idea_added(self, session_id: str, idea_id: str) -> Session:
+    @db_wrapper
+    async def register_idea_added(self, session_id: str, idea_id: str, **kwargs) -> Session:
         """
         Notifica a la sesión que se agregó una idea nueva.
         Delega a session.add_idea() que valida que la sesión esté activa
@@ -169,7 +178,7 @@ class SessionService:
         """
         session = await self.get_session(session_id)
         session.add_idea(idea_id)
-        return await self._repo.save(session)
+        return await self._repo.save(session, kwargs["cursor"])
 
     async def assert_session_is_active(self, session_id: str) -> Session:
         """

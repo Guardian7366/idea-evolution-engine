@@ -14,6 +14,7 @@ from app.application.dto.synthesis_dto import (
 from app.domain.repositories.idea_repository import IdeaRepository
 from app.domain.repositories.version_repository import VersionRepository
 from app.infrastructure.ai.ollama_provider import OllamaProvider
+from app.shared.database import db_wrapper
 
 
 class SynthesisService:
@@ -31,9 +32,11 @@ class SynthesisService:
         self._version_repo = version_repository
         self._provider = ollama_provider
 
+    @db_wrapper
     async def generate_final_synthesis(
         self,
         payload: GenerateFinalSynthesisRequest,
+        **kwargs,
     ) -> GenerateFinalSynthesisResponse:
         """
         Generate the final synthesis for an idea in its current version state.
@@ -42,17 +45,17 @@ class SynthesisService:
         final content), counts the total versions for context, then calls the
         AI provider for synthesis.
         """
-        idea = await self._idea_repo.get_by_id(payload.idea_id)
+        idea = await self._idea_repo.get_by_id(payload.idea_id, kwargs["cursor"])
         if idea is None:
             raise ValueError(f"La idea '{payload.idea_id}' no existe.")
 
-        version = await self._version_repo.get_by_id(payload.version_id)
+        version = await self._version_repo.get_by_id(payload.version_id, kwargs["cursor"])
         if version is None or version.idea_id != payload.idea_id:
             raise ValueError(
                 f"La versión '{payload.version_id}' no existe para la idea '{payload.idea_id}'."
             )
 
-        all_versions = await self._version_repo.get_by_idea_id(payload.idea_id)
+        all_versions = await self._version_repo.get_by_idea_id(payload.idea_id, kwargs["cursor"])
         total_versions = len(all_versions)
 
         synthesis = await self._provider.generate_synthesis(

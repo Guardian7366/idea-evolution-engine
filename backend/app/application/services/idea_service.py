@@ -48,10 +48,9 @@ from app.domain.entities.idea_variant import IdeaVariant
 from app.domain.repositories.idea_repository import IdeaRepository
 from app.domain.value_objects.transformation_type import TransformationType
 from app.infrastructure.ai.ollama_provider import OllamaProvider
-
-if TYPE_CHECKING:
-    from app.application.services.analysis_service import AnalysisService
-    from app.application.services.synthesis_service import SynthesisService
+from app.application.services.analysis_service import AnalysisService
+from app.application.services.synthesis_service import SynthesisService
+from app.shared.database import db_wrapper
 
 
 def _build_title_from_prompt(prompt: str, max_length: int = 60) -> str:
@@ -73,8 +72,8 @@ class IdeaService:
         session_service: SessionService,
         version_service: VersionService,
         ollama_provider: OllamaProvider,
-        analysis_service: "AnalysisService",
-        synthesis_service: "SynthesisService",
+        analysis_service: AnalysisService,
+        synthesis_service: SynthesisService,
     ) -> None:
         self._idea_repo = idea_repository
         self._session_service = session_service
@@ -85,7 +84,8 @@ class IdeaService:
 
     # ── 1. CREATE IDEA ────────────────────────────────────────────────────────
 
-    async def create_idea(self, payload: IdeaCreateRequest) -> IdeaCreateResponse:
+    @db_wrapper
+    async def create_idea(self, payload: IdeaCreateRequest, **kwargs) -> IdeaCreateResponse:
         await self._session_service.assert_session_is_active(payload.session_id)
 
         title = _build_title_from_prompt(payload.initial_prompt)
@@ -95,7 +95,7 @@ class IdeaService:
             title=title,
             content=payload.initial_prompt,
         )
-        persisted_idea = await self._idea_repo.save(idea)
+        persisted_idea = await self._idea_repo.save(idea, kwargs["cursor"])
 
         await self._session_service.register_idea_added(
             payload.session_id, persisted_idea.id
@@ -116,12 +116,14 @@ class IdeaService:
 
     # ── 2. GENERATE VARIANTS (AI) ─────────────────────────────────────────────
 
+    @db_wrapper
     async def generate_variants(
         self,
         payload: GenerateVariantsRequest,
+        **kwargs,
     ) -> GenerateVariantsResponse:
         """Generate variants using Ollama (Qwen2.5)."""
-        idea = await self._idea_repo.get_by_id(payload.idea_id)
+        idea = await self._idea_repo.get_by_id(payload.idea_id, kwargs["cursor"])
         if idea is None:
             raise ValueError(
                 f"No se pueden generar variantes: la idea '{payload.idea_id}' no existe."
@@ -138,15 +140,17 @@ class IdeaService:
 
     # ── 3. SELECT VARIANT ─────────────────────────────────────────────────────
 
+    @db_wrapper
     async def select_variant(
         self,
         payload: SelectVariantRequest,
+        **kwargs,
     ) -> SelectVariantResponse:
         """
         The user picks one variant. Creates the first real active version.
         variant_id is the UUID returned by generate_variants (from the AI).
         """
-        idea = await self._idea_repo.get_by_id(payload.idea_id)
+        idea = await self._idea_repo.get_by_id(payload.idea_id, kwargs["cursor"])
         if idea is None:
             raise ValueError(f"La idea '{payload.idea_id}' no existe.")
 

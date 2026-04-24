@@ -18,6 +18,7 @@ from app.application.dto.perspective_dto import (
 )
 from app.domain.repositories.version_repository import VersionRepository
 from app.infrastructure.ai.ollama_provider import OllamaProvider
+from app.shared.database import db_wrapper
 
 
 class AnalysisService:
@@ -33,9 +34,11 @@ class AnalysisService:
         self._version_repo = version_repository
         self._provider = ollama_provider
 
+    @db_wrapper
     async def compare_versions(
         self,
         payload: CompareVersionsRequest,
+        **kwargs,
     ) -> CompareVersionsResponse:
         """
         Compare two idea versions using Ollama and return structured analysis.
@@ -51,13 +54,13 @@ class AnalysisService:
                 "No se puede comparar una versión consigo misma. "
                 "Selecciona dos versiones diferentes."
             )
-        version_a = await self._version_repo.get_by_id(payload.version_id_a)
+        version_a = await self._version_repo.get_by_id(payload.version_id_a, kwargs["cursor"])
         if version_a is None or version_a.idea_id != payload.idea_id:
             raise ValueError(
                 f"La versión '{payload.version_id_a}' no existe para la idea '{payload.idea_id}'."
             )
 
-        version_b = await self._version_repo.get_by_id(payload.version_id_b)
+        version_b = await self._version_repo.get_by_id(payload.version_id_b, kwargs["cursor"])
         if version_b is None or version_b.idea_id != payload.idea_id:
             raise ValueError(
                 f"La versión '{payload.version_id_b}' no existe para la idea '{payload.idea_id}'."
@@ -79,14 +82,16 @@ class AnalysisService:
             message="Versions compared successfully",
         )
 
+    @db_wrapper
     async def explore_perspective(
         self,
         payload: ExplorePerspectiveRequest,
+        **kwargs,
     ) -> ExplorePerspectiveResponse:
         """
         Analyze a specific idea version from the requested perspective using Ollama.
         """
-        version = await self._version_repo.get_by_id(payload.version_id)
+        version = await self._version_repo.get_by_id(payload.version_id, kwargs["cursor"])
         if version is None or version.idea_id != payload.idea_id:
             raise ValueError(
                 f"La versión '{payload.version_id}' no existe para la idea '{payload.idea_id}'."

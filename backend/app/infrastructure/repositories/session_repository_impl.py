@@ -4,11 +4,9 @@ from typing import List, Optional
 from app.domain.entities.session import Session
 from app.domain.repositories.session_repository import SessionRepository
 from app.domain.value_objects.session_status import SessionStatus
-from app.shared.database import db_wrapper
 
 
 class SessionRepository(SessionRepository):
-    @db_wrapper
     async def save(self, session: Session, cursor: Cursor) -> Session:
         """Guarda o actualiza una sesión."""
         cursor.execute(
@@ -17,7 +15,6 @@ class SessionRepository(SessionRepository):
         )
         return session
 
-    @db_wrapper
     async def get_by_id(self, session_id: str, cursor: Cursor) -> Optional[Session]:
         """Retorna la sesión con ese ID o None si no existe."""
         cursor.execute("SELECT id, title, status, created_at, updated_at FROM sessions WHERE id = ?", (session_id,))
@@ -32,7 +29,6 @@ class SessionRepository(SessionRepository):
             )
         return None
 
-    @db_wrapper
     async def get_all(
         self,
         status: Optional[SessionStatus] = None,
@@ -57,13 +53,11 @@ class SessionRepository(SessionRepository):
             for row in rows
         ]
 
-    @db_wrapper
     async def delete(self, session_id: str, cursor: Cursor) -> bool:
         """Elimina una sesión del store. Retorna True si se eliminó, False si no existía."""
         cursor.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
         return cursor.rowcount > 0
 
-    @db_wrapper
     async def exists(self, session_id: str, cursor: Cursor) -> bool:
         """Verifica si una sesión existe sin cargarla completa."""
         cursor.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,))
