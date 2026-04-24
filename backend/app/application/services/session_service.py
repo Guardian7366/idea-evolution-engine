@@ -113,7 +113,7 @@ class SessionService:
         Si lanza error, la sesión no está en ACTIVE.
         El endpoint debe convertir ese error en HTTP 409 Conflict.
         """
-        session = await self.get_session(session_id)
+        session = await self.get_session(session_id, **kwargs)
         session.pause()
         return await self._repo.save(session, kwargs["cursor"])
 
@@ -123,7 +123,7 @@ class SessionService:
         Reanuda una sesión pausada.
         Solo funciona si está en PAUSED.
         """
-        session = await self.get_session(session_id)
+        session = await self.get_session(session_id, **kwargs)
         session.resume()
         return await self._repo.save(session, kwargs["cursor"])
 
@@ -139,7 +139,7 @@ class SessionService:
         Si falla por "sin ideas": idea_service no llamó register_idea_added()
         al crear ideas, o las ideas no se persistieron correctamente.
         """
-        session = await self.get_session(session_id)
+        session = await self.get_session(session_id, **kwargs)
         # La rule lee directamente de session.idea_ids — no necesita parámetros extra.
         SessionRules.can_be_completed(session)
         session.complete()
@@ -151,7 +151,7 @@ class SessionService:
         Archiva una sesión. Puede archivarse desde PAUSED o COMPLETED.
         No puede archivarse una sesión ACTIVE directamente.
         """
-        session = await self.get_session(session_id)
+        session = await self.get_session(session_id, **kwargs)
         session.archive()
         return await self._repo.save(session, kwargs["cursor"])
 
@@ -176,11 +176,11 @@ class SessionService:
         ese método. Las versiones no notifican a la sesión — son entidades
         independientes gestionadas por VersionService.
         """
-        session = await self.get_session(session_id)
+        session = await self.get_session(session_id, **kwargs)
         session.add_idea(idea_id)
         return await self._repo.save(session, kwargs["cursor"])
 
-    async def assert_session_is_active(self, session_id: str) -> Session:
+    async def assert_session_is_active(self, session_id: str, **kwargs) -> Session:
         """
         Verifica que una sesión existe y está activa. Retorna la sesión.
 
@@ -190,6 +190,6 @@ class SessionService:
         Si lanza ValueError por "no encontrada" → HTTP 404 en el endpoint.
         Si lanza ValueError por "no editable"   → HTTP 409 en el endpoint.
         """
-        session = await self.get_session(session_id)
+        session = await self.get_session(session_id, **kwargs)
         SessionRules.assert_is_editable(session)
         return session

@@ -141,6 +141,7 @@ class VersionService:
         parent_version_id: str,
         instruction: str,
         transformation_type: TransformationType,
+        **kwargs,
     ) -> IdeaVersion:
         """
         Transformación con IA: llama a Ollama, construye la variante,
@@ -153,7 +154,7 @@ class VersionService:
         4. Crea nueva IdeaVersion (marca la padre como SUPERSEDED).
         5. DRAFT → ANALYZED → SELECTED.
         """
-        current_version = await self.get_version(idea_id, parent_version_id)
+        current_version = await self.get_version(idea_id, parent_version_id, **kwargs)
 
         ai_result = await self._provider.transform_version(
             current_title=current_version.title,
@@ -173,10 +174,11 @@ class VersionService:
             idea_id=idea_id,
             parent_version_id=parent_version_id,
             selected_variant=transform_variant,
+            **kwargs,
         )
 
-        await self.mark_analyzed(idea_id, new_version.id)
-        return await self.mark_selected(idea_id, new_version.id)
+        await self.mark_analyzed(idea_id, new_version.id, **kwargs)
+        return await self.mark_selected(idea_id, new_version.id, **kwargs)
 
     # ──────────────────────────────────────────────────────────────────────────
     # OBTENER VERSIONES
@@ -294,6 +296,6 @@ class VersionService:
     # UTILIDADES
     # ──────────────────────────────────────────────────────────────────────────
 
-    async def assert_version_exists(self, idea_id: str, version_id: str) -> IdeaVersion:
+    async def assert_version_exists(self, idea_id: str, version_id: str, **kwargs) -> IdeaVersion:
         """Verifica que una versión existe. Utilitario para otros servicios."""
-        return await self.get_version(idea_id, version_id)
+        return await self.get_version(idea_id, version_id, **kwargs)

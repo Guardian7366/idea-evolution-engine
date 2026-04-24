@@ -98,13 +98,14 @@ class IdeaService:
         persisted_idea = await self._idea_repo.save(idea, kwargs["cursor"])
 
         await self._session_service.register_idea_added(
-            payload.session_id, persisted_idea.id
+            payload.session_id, persisted_idea.id, **kwargs
         )
 
         await self._version_service.create_initial_version(
             idea_id=persisted_idea.id,
             title=title,
             content=payload.initial_prompt,
+            **kwargs,
         )
 
         return IdeaCreateResponse(
@@ -154,7 +155,7 @@ class IdeaService:
         if idea is None:
             raise ValueError(f"La idea '{payload.idea_id}' no existe.")
 
-        latest_version = await self._version_service.get_latest_version(payload.idea_id)
+        latest_version = await self._version_service.get_latest_version(payload.idea_id, **kwargs)
         if latest_version is None:
             raise ValueError(
                 f"La idea '{payload.idea_id}' no tiene versiones. "
@@ -172,9 +173,9 @@ class IdeaService:
         # IMPORTANTE:
         # Se utiliza el variant_id generado por la IA/frontend
         # para mantener consistencia en todo el flujo.
-        await self._version_service.mark_analyzed(payload.idea_id, latest_version.id)
-        await self._version_service.add_variant_to_version(payload.idea_id, latest_version.id, variant)
-        updated_version = await self._version_service.mark_selected(payload.idea_id, latest_version.id)
+        await self._version_service.mark_analyzed(payload.idea_id, latest_version.id, **kwargs)
+        await self._version_service.add_variant_to_version(payload.idea_id, latest_version.id, variant, **kwargs)
+        updated_version = await self._version_service.mark_selected(payload.idea_id, latest_version.id, **kwargs)
 
         active_version = ActiveIdeaVersion(
             version_id=updated_version.id,
@@ -202,6 +203,7 @@ class IdeaService:
     async def transform_version(
         self,
         payload: TransformVersionRequest,
+        **kwargs,
     ) -> TransformVersionResponse:
         """
         Orchestrates an AI-powered transformation of the current active version.
@@ -220,6 +222,7 @@ class IdeaService:
             parent_version_id=payload.version_id,
             instruction=payload.instruction,
             transformation_type=transformation,
+            **kwargs,
         )
 
         new_active_version = ActiveIdeaVersion(
@@ -248,21 +251,24 @@ class IdeaService:
     async def compare_versions(
         self,
         payload: CompareVersionsRequest,
+        **kwargs,
     ) -> CompareVersionsResponse:
-        return await self._analysis_service.compare_versions(payload)
+        return await self._analysis_service.compare_versions(payload, **kwargs)
 
     # ── 6. EXPLORE PERSPECTIVE (AI via AnalysisService) ───────────────────────
 
     async def explore_perspective(
         self,
         payload: ExplorePerspectiveRequest,
+        **kwargs,
     ) -> ExplorePerspectiveResponse:
-        return await self._analysis_service.explore_perspective(payload)
+        return await self._analysis_service.explore_perspective(payload, **kwargs)
 
     # ── 7. GENERATE FINAL SYNTHESIS (AI via SynthesisService) ─────────────────
 
     async def generate_final_synthesis(
         self,
         payload: GenerateFinalSynthesisRequest,
+        **kwargs,
     ) -> GenerateFinalSynthesisResponse:
-        return await self._synthesis_service.generate_final_synthesis(payload)
+        return await self._synthesis_service.generate_final_synthesis(payload, **kwargs)
