@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from uuid import uuid4
+import sqlite3
 
+from app.shared.config import settings
 from app.domain.value_objects.session_status import SessionStatus
 from app.domain.entities import DateHelper
 
@@ -19,6 +21,16 @@ class Session(DateHelper):
     created_at: datetime
     updated_at: datetime
     idea_ids: list[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        super().__post_init__()
+        # Al cargar la sesión, también cargamos los IDs de las ideas asociadas.
+        conn = sqlite3.connect(settings.database_name)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM ideas WHERE session_id = ?", (self.id,))
+        rows = cursor.fetchall()
+        self.idea_ids = [row[0] for row in rows]
+        conn.close()
 
     @classmethod
     def create(cls, title: str) -> "Session":
