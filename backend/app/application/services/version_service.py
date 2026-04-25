@@ -22,7 +22,7 @@ CAMBIOS TAREA 3 (Fortalecer versionado):
    completo de una idea usando get_lineage_info() de cada versión.
    Útil para synthesis_service y para debug del historial evolutivo.
 """
-
+from sqlite3 import Cursor
 from typing import Optional
 
 from app.domain.entities.idea_version import IdeaVersion
@@ -32,7 +32,6 @@ from app.domain.repositories.version_repository import VersionRepository
 from app.domain.rules.version_rules import VersionRules
 from app.domain.value_objects.transformation_type import TransformationType
 from app.infrastructure.ai.ollama_provider import OllamaProvider
-from app.shared.database import db_wrapper
 
 
 class VersionService:
@@ -59,13 +58,12 @@ class VersionService:
     # CREAR VERSIONES
     # ──────────────────────────────────────────────────────────────────────────
 
-    @db_wrapper
     async def create_initial_version(
         self,
         idea_id: str,
         title: str,
         content: str,
-        **kwargs,
+        cursor: Cursor,
     ) -> IdeaVersion:
         """
         Crea la primera versión (v1) de una idea recién creada.
@@ -73,14 +71,14 @@ class VersionService:
         Recupera la idea padre para obtener session_id, que IdeaVersion requiere
         como campo obligatorio. Sin esto, create_initial() lanza TypeError.
         """
-        idea = await self._idea_repo.get_by_id(idea_id, kwargs["cursor"])
+        idea = await self._idea_repo.get_by_id(idea_id, cursor)
         if idea is None:
             raise ValueError(
                 f"No se puede crear una versión: la idea '{idea_id}' no existe. "
                 "Verifica que idea_service haya persistido la idea primero."
             )
 
-        existing = await self._version_repo.get_by_idea_id(idea_id, kwargs["cursor"])
+        existing = await self._version_repo.get_by_idea_id(idea_id, cursor)
         if not VersionRules.can_create_next_version(existing):
             raise ValueError(
                 f"La idea '{idea_id}' ya tiene el máximo de versiones permitidas "
@@ -94,25 +92,24 @@ class VersionService:
             content=content,
         )
 
-        return await self._version_repo.save(version, kwargs["cursor"])
+        return await self._version_repo.save(version, cursor)
 
-    @db_wrapper
     async def create_version_from_transformation(
         self,
         idea_id: str,
         parent_version_id: str,
         selected_variant: IdeaVariant,
-        **kwargs,
+        cursor: Cursor,
     ) -> IdeaVersion:
         """
         Crea una nueva versión a partir de una variante seleccionada.
         Marca la versión padre como SUPERSEDED (cambia status e is_active).
         """
-        parent_version = await self._version_repo.get_by_id(parent_version_id, kwargs["cursor"])
+        parent_version = await self._version_repo.get_by_id(parent_version_id, cursor)
         if parent_version is None:
             raise ValueError(f"La versión padre '{parent_version_id}' no existe.")
 
-        existing = await self._version_repo.get_by_idea_id(idea_id, kwargs["cursor"])
+        existing = await self._version_repo.get_by_idea_id(idea_id, cursor)
         if not VersionRules.can_create_next_version(existing):
             raise ValueError(
                 f"La idea '{idea_id}' alcanzó el máximo de versiones permitidas. "
@@ -127,9 +124,9 @@ class VersionService:
 
         # supersede() ahora actualiza status e is_active en un solo paso.
         parent_version.supersede()
-        await self._version_repo.save(parent_version, kwargs["cursor"])
+        await self._version_repo.save(parent_version, cursor)
 
-        return await self._version_repo.save(new_version, kwargs["cursor"])
+        return await self._version_repo.save(new_version, cursor)
 
     # ──────────────────────────────────────────────────────────────────────────
     # TRANSFORMACIÓN CON IA
@@ -141,7 +138,7 @@ class VersionService:
         parent_version_id: str,
         instruction: str,
         transformation_type: TransformationType,
-        **kwargs,
+        cursor: Cursor,
     ) -> IdeaVersion:
         """
         Transformación con IA: llama a Ollama, construye la variante,
@@ -154,7 +151,7 @@ class VersionService:
         4. Crea nueva IdeaVersion (marca la padre como SUPERSEDED).
         5. DRAFT → ANALYZED → SELECTED.
         """
-        current_version = await self.get_version(idea_id, parent_version_id, **kwargs)
+        current_version = await self.get_version(idea_id, parent_version_id, cursor)
 
         ai_result = await self._provider.transform_version(
             current_title=current_version.title,
@@ -174,31 +171,29 @@ class VersionService:
             idea_id=idea_id,
             parent_version_id=parent_version_id,
             selected_variant=transform_variant,
-            **kwargs,
+            cursor=cursor,
         )
 
-        await self.mark_analyzed(idea_id, new_version.id, **kwargs)
-        return await self.mark_selected(idea_id, new_version.id, **kwargs)
+        await self.mark_analyzed(idea_id, new_version.id, cursor)
+        return await self.mark_selected(idea_id, new_version.id, cursor)
 
     # ──────────────────────────────────────────────────────────────────────────
     # OBTENER VERSIONES
     # ──────────────────────────────────────────────────────────────────────────
 
-    @db_wrapper
-    async def get_version(self, idea_id: str, version_id: str, **kwargs) -> IdeaVersion:
+    async def get_version(self, idea_id: str, version_id: str, cursor: Cursor) -> IdeaVersion:
         """
         Retorna una versión específica validando que pertenece a la idea indicada.
         Lanza ValueError si no existe o no corresponde a esa idea.
         """
-        version = await self._version_repo.get_by_id(version_id, kwargs["cursor"])
+        version = await self._version_repo.get_by_id(version_id, cursor)
         if version is None or version.idea_id != idea_id:
             raise ValueError(
                 f"La versión '{version_id}' no existe para la idea '{idea_id}'."
             )
         return version
 
-    @db_wrapper
-    async def get_latest_version(self, idea_id: str, **kwargs) -> Optional[IdeaVersion]:
+    async def get_latest_version(self, idea_id: str, cursor: Cursor) -> Optional[IdeaVersion]:
         """
         Retorna la versión con el version_number más alto de una idea.
 
@@ -206,10 +201,9 @@ class VersionService:
         en lugar de traer todas las versiones y calcular el máximo en memoria.
         Más eficiente y preparado para la implementación SQLite real.
         """
-        return await self._version_repo.get_latest_by_idea_id(idea_id, kwargs["cursor"])
+        return await self._version_repo.get_latest_by_idea_id(idea_id, cursor)
 
-    @db_wrapper
-    async def get_active_version(self, idea_id: str, **kwargs) -> Optional[IdeaVersion]:
+    async def get_active_version(self, idea_id: str, cursor: Cursor) -> Optional[IdeaVersion]:
         """
         Retorna la versión activa actual de una idea.
 
@@ -220,19 +214,17 @@ class VersionService:
 
         Retorna None si todas las versiones están SUPERSEDED.
         """
-        versions = await self._version_repo.get_by_idea_id(idea_id, kwargs["cursor"])
+        versions = await self._version_repo.get_by_idea_id(idea_id, cursor)
         return VersionRules.get_active_version(versions)
 
-    @db_wrapper
-    async def get_all_versions(self, idea_id: str, **kwargs) -> list[IdeaVersion]:
+    async def get_all_versions(self, idea_id: str, cursor: Cursor) -> list[IdeaVersion]:
         """
         Retorna todas las versiones de una idea ordenadas por version_number.
         """
-        versions = await self._version_repo.get_by_idea_id(idea_id, kwargs["cursor"])
+        versions = await self._version_repo.get_by_idea_id(idea_id, cursor)
         return sorted(versions, key=lambda v: v.version_number)
 
-    @db_wrapper
-    async def get_version_lineage(self, idea_id: str, **kwargs) -> list[dict]:
+    async def get_version_lineage(self, idea_id: str, cursor: Cursor) -> list[dict]:
         """
         Retorna el árbol de trazabilidad completo de una idea.
 
@@ -245,57 +237,54 @@ class VersionService:
 
         Retorna una lista de dicts con la info de trazabilidad de cada versión.
         """
-        versions = await self.get_all_versions(idea_id, **kwargs)
+        versions = await self.get_all_versions(idea_id, cursor)
         return [v.get_lineage_info() for v in versions]
 
     # ──────────────────────────────────────────────────────────────────────────
     # AVANCE DE ESTADOS
     # ──────────────────────────────────────────────────────────────────────────
 
-    @db_wrapper
-    async def mark_analyzed(self, idea_id: str, version_id: str, **kwargs) -> IdeaVersion:
+    async def mark_analyzed(self, idea_id: str, version_id: str, cursor: Cursor) -> IdeaVersion:
         """
         DRAFT → ANALYZED: la IA terminó de procesar esta versión.
         Si falla: la versión no está en DRAFT.
         """
-        version = await self.get_version(idea_id, version_id, **kwargs)
+        version = await self.get_version(idea_id, version_id, cursor)
         version.mark_analyzed()
-        return await self._version_repo.save(version, kwargs["cursor"])
+        return await self._version_repo.save(version, cursor)
 
-    @db_wrapper
-    async def mark_selected(self, idea_id: str, version_id: str, **kwargs) -> IdeaVersion:
+    async def mark_selected(self, idea_id: str, version_id: str, cursor: Cursor) -> IdeaVersion:
         """
         ANALYZED → SELECTED: el usuario eligió esta versión para avanzar.
         Si falla: la versión no está en ANALYZED todavía.
         """
-        version = await self.get_version(idea_id, version_id, **kwargs)
+        version = await self.get_version(idea_id, version_id, cursor)
         version.mark_selected()
-        return await self._version_repo.save(version, kwargs["cursor"])
+        return await self._version_repo.save(version, cursor)
 
     # ──────────────────────────────────────────────────────────────────────────
     # VARIANTES
     # ──────────────────────────────────────────────────────────────────────────
 
-    @db_wrapper
     async def add_variant_to_version(
         self,
         idea_id: str,
         version_id: str,
         variant: IdeaVariant,
-        **kwargs,
+        cursor: Cursor,
     ) -> IdeaVersion:
         """
         Agrega una variante a una versión.
         IdeaVersion.add_variant() valida que esté en DRAFT o ANALYZED.
         """
-        version = await self.get_version(idea_id, version_id, **kwargs)
+        version = await self.get_version(idea_id, version_id, cursor)
         version.add_variant(variant)
-        return await self._version_repo.save(version, kwargs["cursor"])
+        return await self._version_repo.save(version, cursor)
 
     # ──────────────────────────────────────────────────────────────────────────
     # UTILIDADES
     # ──────────────────────────────────────────────────────────────────────────
 
-    async def assert_version_exists(self, idea_id: str, version_id: str, **kwargs) -> IdeaVersion:
+    async def assert_version_exists(self, idea_id: str, version_id: str, cursor: Cursor) -> IdeaVersion:
         """Verifica que una versión existe. Utilitario para otros servicios."""
-        return await self.get_version(idea_id, version_id, **kwargs)
+        return await self.get_version(idea_id, version_id, cursor)

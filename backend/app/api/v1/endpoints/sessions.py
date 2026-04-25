@@ -17,13 +17,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.application.dto.session_dto import SessionCreateResponse
 from app.application.services.session_service import SessionService
 from app.api.deps import get_session_service
+from app.shared.database import db_wrapper
 
 router = APIRouter()
 
 
 @router.post("", response_model=SessionCreateResponse)
+@db_wrapper
 async def create_session(
     service: SessionService = Depends(get_session_service),
+    **kwargs,
 ) -> SessionCreateResponse:
     """
     Crea una nueva sesión.
@@ -36,7 +39,7 @@ async def create_session(
     El servicio usará "Nueva sesión" como título por defecto hasta entonces.
     """
     try:
-        session = await service.create_session()
+        session = await service.create_session(title="Nueva sesión", cursor=kwargs["cursor"])
     except ValueError as e:
         # En esta operación específica un ValueError sería inesperado,
         # pero lo capturamos por consistencia con el resto de endpoints.

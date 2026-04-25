@@ -9,8 +9,7 @@ AI operations are delegated to specialized services:
 
 transform_version orchestration stays here; the AI call inside it lives in VersionService.
 """
-
-from typing import TYPE_CHECKING
+from sqlite3 import Cursor
 
 from app.application.dto.comparison_dto import (
     CompareVersionsRequest,
@@ -50,7 +49,6 @@ from app.domain.value_objects.transformation_type import TransformationType
 from app.infrastructure.ai.ollama_provider import OllamaProvider
 from app.application.services.analysis_service import AnalysisService
 from app.application.services.synthesis_service import SynthesisService
-from app.shared.database import db_wrapper
 
 
 def _build_title_from_prompt(prompt: str, max_length: int = 60) -> str:
@@ -84,8 +82,7 @@ class IdeaService:
 
     # ── 1. CREATE IDEA ────────────────────────────────────────────────────────
 
-    @db_wrapper
-    async def create_idea(self, payload: IdeaCreateRequest, **kwargs) -> IdeaCreateResponse:
+    async def create_idea(self, payload: IdeaCreateRequest, cursor: Cursor) -> IdeaCreateResponse:
         await self._session_service.assert_session_is_active(payload.session_id)
 
         title = _build_title_from_prompt(payload.initial_prompt)
@@ -95,17 +92,17 @@ class IdeaService:
             title=title,
             content=payload.initial_prompt,
         )
-        persisted_idea = await self._idea_repo.save(idea, kwargs["cursor"])
+        persisted_idea = await self._idea_repo.save(idea, cursor)
 
         await self._session_service.register_idea_added(
-            payload.session_id, persisted_idea.id, **kwargs
+            payload.session_id, persisted_idea.id, cursor
         )
 
         await self._version_service.create_initial_version(
             idea_id=persisted_idea.id,
             title=title,
             content=payload.initial_prompt,
-            **kwargs,
+            cursor=cursor,
         )
 
         return IdeaCreateResponse(
@@ -117,14 +114,13 @@ class IdeaService:
 
     # ── 2. GENERATE VARIANTS (AI) ─────────────────────────────────────────────
 
-    @db_wrapper
     async def generate_variants(
         self,
         payload: GenerateVariantsRequest,
-        **kwargs,
+        cursor: Cursor,
     ) -> GenerateVariantsResponse:
         """Generate variants using Ollama (Qwen2.5)."""
-        idea = await self._idea_repo.get_by_id(payload.idea_id, kwargs["cursor"])
+        idea = await self._idea_repo.get_by_id(payload.idea_id, cursor)
         if idea is None:
             raise ValueError(
                 f"No se pueden generar variantes: la idea '{payload.idea_id}' no existe."
@@ -141,21 +137,20 @@ class IdeaService:
 
     # ── 3. SELECT VARIANT ─────────────────────────────────────────────────────
 
-    @db_wrapper
     async def select_variant(
         self,
         payload: SelectVariantRequest,
-        **kwargs,
+        cursor: Cursor,
     ) -> SelectVariantResponse:
         """
         The user picks one variant. Creates the first real active version.
         variant_id is the UUID returned by generate_variants (from the AI).
         """
-        idea = await self._idea_repo.get_by_id(payload.idea_id, kwargs["cursor"])
+        idea = await self._idea_repo.get_by_id(payload.idea_id, cursor)
         if idea is None:
             raise ValueError(f"La idea '{payload.idea_id}' no existe.")
 
-        latest_version = await self._version_service.get_latest_version(payload.idea_id, **kwargs)
+        latest_version = await self._version_service.get_latest_version(payload.idea_id, cursor)
         if latest_version is None:
             raise ValueError(
                 f"La idea '{payload.idea_id}' no tiene versiones. "
@@ -173,9 +168,9 @@ class IdeaService:
         # IMPORTANTE:
         # Se utiliza el variant_id generado por la IA/frontend
         # para mantener consistencia en todo el flujo.
-        await self._version_service.mark_analyzed(payload.idea_id, latest_version.id, **kwargs)
-        await self._version_service.add_variant_to_version(payload.idea_id, latest_version.id, variant, **kwargs)
-        updated_version = await self._version_service.mark_selected(payload.idea_id, latest_version.id, **kwargs)
+        await self._version_service.mark_analyzed(payload.idea_id, latest_version.id, cursor)
+        await self._version_service.add_variant_to_version(payload.idea_id, latest_version.id, variant, cursor)
+        updated_version = await self._version_service.mark_selected(payload.idea_id, latest_version.id, cursor)
 
         active_version = ActiveIdeaVersion(
             version_id=updated_version.id,
@@ -203,7 +198,7 @@ class IdeaService:
     async def transform_version(
         self,
         payload: TransformVersionRequest,
-        **kwargs,
+        cursor: Cursor,
     ) -> TransformVersionResponse:
         """
         Orchestrates an AI-powered transformation of the current active version.
@@ -222,7 +217,7 @@ class IdeaService:
             parent_version_id=payload.version_id,
             instruction=payload.instruction,
             transformation_type=transformation,
-            **kwargs,
+            cursor=cursor,
         )
 
         new_active_version = ActiveIdeaVersion(
@@ -251,24 +246,24 @@ class IdeaService:
     async def compare_versions(
         self,
         payload: CompareVersionsRequest,
-        **kwargs,
+        cursor: Cursor,
     ) -> CompareVersionsResponse:
-        return await self._analysis_service.compare_versions(payload, **kwargs)
+        return await self._analysis_service.compare_versions(payload, cursor)
 
     # ── 6. EXPLORE PERSPECTIVE (AI via AnalysisService) ───────────────────────
 
     async def explore_perspective(
         self,
         payload: ExplorePerspectiveRequest,
-        **kwargs,
+        cursor: Cursor,
     ) -> ExplorePerspectiveResponse:
-        return await self._analysis_service.explore_perspective(payload, **kwargs)
+        return await self._analysis_service.explore_perspective(payload, cursor)
 
     # ── 7. GENERATE FINAL SYNTHESIS (AI via SynthesisService) ─────────────────
 
     async def generate_final_synthesis(
         self,
         payload: GenerateFinalSynthesisRequest,
-        **kwargs,
+        cursor: Cursor,
     ) -> GenerateFinalSynthesisResponse:
-        return await self._synthesis_service.generate_final_synthesis(payload, **kwargs)
+        return await self._synthesis_service.generate_final_synthesis(payload, cursor)
