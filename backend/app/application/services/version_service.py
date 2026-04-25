@@ -245,7 +245,7 @@ class VersionService:
 
         Retorna una lista de dicts con la info de trazabilidad de cada versión.
         """
-        versions = await self.get_all_versions(idea_id)
+        versions = await self.get_all_versions(idea_id, **kwargs)
         return [v.get_lineage_info() for v in versions]
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -258,7 +258,7 @@ class VersionService:
         DRAFT → ANALYZED: la IA terminó de procesar esta versión.
         Si falla: la versión no está en DRAFT.
         """
-        version = await self.get_version(idea_id, version_id)
+        version = await self.get_version(idea_id, version_id, **kwargs)
         version.mark_analyzed()
         return await self._version_repo.save(version, kwargs["cursor"])
 
@@ -268,7 +268,7 @@ class VersionService:
         ANALYZED → SELECTED: el usuario eligió esta versión para avanzar.
         Si falla: la versión no está en ANALYZED todavía.
         """
-        version = await self.get_version(idea_id, version_id)
+        version = await self.get_version(idea_id, version_id, **kwargs)
         version.mark_selected()
         return await self._version_repo.save(version, kwargs["cursor"])
 
@@ -288,7 +288,7 @@ class VersionService:
         Agrega una variante a una versión.
         IdeaVersion.add_variant() valida que esté en DRAFT o ANALYZED.
         """
-        version = await self.get_version(idea_id, version_id)
+        version = await self.get_version(idea_id, version_id, **kwargs)
         version.add_variant(variant)
         return await self._version_repo.save(version, kwargs["cursor"])
 
