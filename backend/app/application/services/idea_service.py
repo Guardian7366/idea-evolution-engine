@@ -83,7 +83,7 @@ class IdeaService:
     # ── 1. CREATE IDEA ────────────────────────────────────────────────────────
 
     async def create_idea(self, payload: IdeaCreateRequest, cursor: Cursor) -> IdeaCreateResponse:
-        await self._session_service.assert_session_is_active(payload.session_id)
+        await self._session_service.assert_session_is_active(payload.session_id, cursor)
 
         title = _build_title_from_prompt(payload.initial_prompt)
 

@@ -11,22 +11,20 @@ Lo que este archivo NO hace:
 - No contiene lógica de negocio. Solo recibe, delega al servicio, y mapea la respuesta.
 - No maneja el estado de la sesión directamente.
 """
-
+from sqlite3 import Cursor
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.application.dto.session_dto import SessionCreateResponse
 from app.application.services.session_service import SessionService
-from app.api.deps import get_session_service
-from app.shared.database import db_wrapper
+from app.api.deps import get_session_service, get_db_cursor
 
 router = APIRouter()
 
 
 @router.post("", response_model=SessionCreateResponse)
-@db_wrapper
 async def create_session(
     service: SessionService = Depends(get_session_service),
-    **kwargs,
+    cursor: Cursor = Depends(get_db_cursor)
 ) -> SessionCreateResponse:
     """
     Crea una nueva sesión.
@@ -39,7 +37,7 @@ async def create_session(
     El servicio usará "Nueva sesión" como título por defecto hasta entonces.
     """
     try:
-        session = await service.create_session(title="Nueva sesión", cursor=kwargs["cursor"])
+        session = await service.create_session(title="Nueva sesión", cursor=cursor)
     except ValueError as e:
         # En esta operación específica un ValueError sería inesperado,
         # pero lo capturamos por consistencia con el resto de endpoints.

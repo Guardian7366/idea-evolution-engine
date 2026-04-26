@@ -7,6 +7,8 @@ Only this file changes when swapping mock repos for real DB implementations.
 Singletons created once at module load time so state persists across requests.
 """
 
+import sqlite3
+from app.shared.config import settings
 from fastapi import Depends
 from app.application.services.analysis_service import AnalysisService
 from app.application.services.idea_service import IdeaService
@@ -61,3 +63,14 @@ def get_idea_service(
         analysis_service,
         synthesis_service,
     )
+
+def get_db_cursor():
+    conn = sqlite3.connect(settings.database_name, check_same_thread=False)
+    try:
+        yield conn.cursor()
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
