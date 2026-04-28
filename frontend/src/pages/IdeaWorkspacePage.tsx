@@ -60,11 +60,16 @@ export function IdeaWorkspacePage() {
         }}
       />
 
-    <div className="space-y-8">
-
-      <button type="button" onClick={() => setIsHistoryOpen(true)}>
-          ☰
-        </button>
+    <div
+      className={`space-y-8 transition-all duration-300 ${
+        isHistoryOpen ? 'ml-[320px]' : 'ml-0'
+      }`}
+    >
+          {!isHistoryOpen &&
+      <button className="mt-18 -ml-60 text-4xl size-13" type="button" onClick={() => setIsHistoryOpen(true)}>
+          <img src="/src/assets/flowbite--open-sidebar-solid.png" alt="" />
+        </button>}
+      
 
       <IdeaInputSection
         ideaInput={ideaInput}

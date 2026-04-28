@@ -29,14 +29,14 @@ export function IdeaHistorySidebar({
   return (
     <>
       <div
-        className={`fixed inset-0 z-40 bg-slate-900/40 transition-opacity ${
+        className={`fixed inset-500 z-40 transition-opacity ${
           isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
         onClick={onClose}
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[320px] max-w-[90vw] border-r border-slate-200 bg-white shadow-xl transition-transform duration-300 ${
+        className={`fixed mt-18 inset-y-0 left-0 z-50 w-[320px] max-w-[90vw] border-r border-slate-200 bg-zinc-300 shadow-xl transition-transform duration-300 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -50,10 +50,10 @@ export function IdeaHistorySidebar({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 size-18"
               aria-label="Close history"
             >
-              X
+              <img src="src/assets/flowbite--close-sidebar-solid.png" alt="" />
             </button>
           </div>
 
