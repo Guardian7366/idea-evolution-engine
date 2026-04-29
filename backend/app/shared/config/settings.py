@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # Ollama LLM configuration
     ollama_base_url: str = Field(default=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
     ollama_model: str = Field(default=os.getenv("OLLAMA_MODEL", "qwen2.5"))
+    ollama_timeout: float = Field(default=float(os.getenv("OLLAMA_TIMEOUT", "60")))
 
     model_config = SettingsConfigDict(
         env_file=BACKEND_DIR / ".env",
