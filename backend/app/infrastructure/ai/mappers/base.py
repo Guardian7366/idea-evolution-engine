@@ -52,3 +52,15 @@ def require_keys(data: dict[str, Any], keys: list[str], context: str) -> None:
             f"LLM response for {context} is missing required keys: {missing}. "
             f"Got keys: {list(data.keys())}"
         )
+
+
+def coerce_str_list(value: object) -> list[str]:
+    """
+    Convert a value from an LLM response into a clean list of non-empty strings.
+
+    Returns an empty list (not an error) for None, non-list, or all-blank input
+    so callers can decide whether to fall back based on truthiness.
+    """
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return []

@@ -46,8 +46,8 @@ class IdeaRepository(IdeaRepository):
         ]
 
     async def get_active_by_session_id(self, session_id: str, cursor: Cursor) -> List[Idea]:
-        """Retorna las ideas activas de una sesión."""
-        cursor.execute("SELECT id, session_id, title, content, created_at, updated_at FROM ideas WHERE session_id = ? AND is_archived = 0", (session_id,))
+        """Retorna las ideas de una sesión (el esquema actual no incluye is_archived)."""
+        cursor.execute("SELECT id, session_id, title, content, created_at, updated_at FROM ideas WHERE session_id = ?", (session_id,))
         rows = cursor.fetchall()
         return [
             Idea(

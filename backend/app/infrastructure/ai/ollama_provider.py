@@ -1,27 +1,38 @@
 """
-ollama_provider.py — The real AI provider. Uses Qwen2.5 via Ollama.
+ollama_provider.py — Real AI provider facade over LLMClient + Ollama.
 
-This is the single point of contact between domain/application logic and the LLM.
-It is called by four services:
+Single point of contact between domain/application logic and the LLM.
+Called by four services:
   - idea_service.py      → generate_variants
-  - version_service.py   → ai_transform
+  - version_service.py   → transform_version
   - analysis_service.py  → compare_versions, explore_perspective
   - synthesis_service.py → generate_synthesis
 
-Each method builds the correct prompt, calls LLMClient.chat(), and passes
-the raw response through the corresponding mapper.
+Each method: build prompt → LLM call → mapper → typed result.
+
+Error handling strategy (Task 4 — reduce silent fallbacks):
+  OllamaUnavailableError → ERROR  (Ollama not running — ops issue)
+  OllamaTimeoutError     → WARNING (model slow — might recover)
+  OllamaHTTPError        → ERROR  (Ollama HTTP fault — check model name)
+  LLMParseError          → WARNING (model responded but format wrong — prompt issue)
+  Unexpected Exception   → ERROR with traceback
+All paths return a typed fallback so the HTTP flow never breaks.
 """
 
 import logging
-
-logger = logging.getLogger(__name__)
 
 from app.application.dto.comparison_dto import VersionComparisonResult
 from app.application.dto.perspective_dto import PerspectiveAnalysisResult
 from app.application.dto.synthesis_dto import FinalSynthesisResult
 from app.application.dto.variant_dto import IdeaVariantItem
-from app.infrastructure.ai.llm_client import LLMClient
+from app.infrastructure.ai.llm_client import (
+    LLMClient,
+    OllamaHTTPError,
+    OllamaTimeoutError,
+    OllamaUnavailableError,
+)
 from app.infrastructure.ai.mappers.analysis_mapper import map_comparison, map_perspective
+from app.infrastructure.ai.mappers.base import LLMParseError
 from app.infrastructure.ai.mappers.synthesis_mapper import map_synthesis
 from app.infrastructure.ai.mappers.transformation_mapper import map_transformation
 from app.infrastructure.ai.mappers.variant_mapper import map_variants
@@ -44,11 +55,32 @@ from app.infrastructure.ai.prompts.variant_prompts import (
     build_variant_user_prompt,
 )
 
+logger = logging.getLogger(__name__)
+
+# ── Shared error-logging helper ───────────────────────────────────────────────
+
+def _log_llm_error(operation: str, exc: Exception) -> None:
+    """Log with the appropriate level depending on exception type."""
+    if isinstance(exc, OllamaUnavailableError):
+        logger.error("[OllamaProvider.%s] Ollama no disponible: %s", operation, exc)
+    elif isinstance(exc, OllamaTimeoutError):
+        logger.warning("[OllamaProvider.%s] Timeout del modelo: %s", operation, exc)
+    elif isinstance(exc, OllamaHTTPError):
+        logger.error("[OllamaProvider.%s] Error HTTP de Ollama (code=%s): %s",
+                     operation, exc.code, exc.body[:200])
+    elif isinstance(exc, LLMParseError):
+        logger.warning("[OllamaProvider.%s] Respuesta del modelo con formato incorrecto: %s",
+                       operation, exc)
+    else:
+        logger.error("[OllamaProvider.%s] Error inesperado: %s", operation, exc, exc_info=True)
+
+
+# ── Provider ──────────────────────────────────────────────────────────────────
 
 class OllamaProvider:
     """
     Facade over LLMClient that exposes one method per AI operation.
-    Each method is responsible for: prompt → LLM call → mapper → typed result.
+    Each method handles its own errors and always returns a typed result.
     """
 
     def __init__(self, client: LLMClient) -> None:
@@ -64,8 +96,8 @@ class OllamaProvider:
                 user=build_variant_user_prompt(initial_prompt),
             )
             return map_variants(raw)
-        except Exception as e:
-            logger.error(f"[OllamaProvider] Error generando variantes: {str(e)}")
+        except Exception as exc:
+            _log_llm_error("generate_variants", exc)
             return map_variants("{}")
 
     # ── version_service ───────────────────────────────────────────────────────
@@ -78,8 +110,8 @@ class OllamaProvider:
         instruction: str,
     ) -> dict[str, str]:
         """
-        Transform an idea version. Returns {'title': ..., 'content': ...}
-        ready to build an IdeaVariant.
+        Transform an idea version.
+        Returns {'title': ..., 'content': ...} ready to build an IdeaVariant.
         """
         try:
             raw = await self._client.chat(
@@ -92,7 +124,8 @@ class OllamaProvider:
                 ),
             )
             return map_transformation(raw, transformation_type, instruction)
-        except Exception:
+        except Exception as exc:
+            _log_llm_error("transform_version", exc)
             return map_transformation("{}", transformation_type, instruction)
 
     # ── analysis_service ──────────────────────────────────────────────────────
@@ -111,8 +144,8 @@ class OllamaProvider:
                 user=build_comparison_user_prompt(title_a, content_a, title_b, content_b),
             )
             return map_comparison(raw)
-        except Exception as e:
-            logger.error(f"[OllamaProvider] Error comparando versiones: {str(e)}")
+        except Exception as exc:
+            _log_llm_error("compare_versions", exc)
             return map_comparison("{}")
 
     async def explore_perspective(
@@ -128,10 +161,10 @@ class OllamaProvider:
                 user=build_perspective_user_prompt(perspective_type, title, content),
             )
             return map_perspective(raw, perspective_type)
-        except Exception as e:
-            logger.error(f"[OllamaProvider] Error explorando perspectiva: {str(e)}")
+        except Exception as exc:
+            _log_llm_error("explore_perspective", exc)
             return map_perspective("{}", perspective_type)
-        
+
     # ── synthesis_service ─────────────────────────────────────────────────────
 
     async def generate_synthesis(
@@ -153,6 +186,6 @@ class OllamaProvider:
                 ),
             )
             return map_synthesis(raw, total_versions)
-        except Exception as e:
-            logger.error(f"[OllamaProvider] Error generando síntesis: {str(e)}")
+        except Exception as exc:
+            _log_llm_error("generate_synthesis", exc)
             return map_synthesis("{}", total_versions)

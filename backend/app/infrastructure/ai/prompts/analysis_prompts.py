@@ -1,7 +1,7 @@
 """
 analysis_prompts.py — Prompts for version comparison and perspective analysis via Ollama.
 
-Called by: analysis_service.py → compare_versions, explore_perspective
+Called by: ollama_provider.py → compare_versions, explore_perspective
 """
 
 # ── Comparison ────────────────────────────────────────────────────────────────
@@ -14,22 +14,26 @@ Respond ONLY with a valid JSON object in this exact structure:
 {
   "summary": "1-2 sentence high-level comparison of both versions.",
   "strengths_version_a": [
-    "Strength 1 of version A",
-    "Strength 2 of version A"
+    "Specific strength 1 of version A",
+    "Specific strength 2 of version A"
   ],
   "strengths_version_b": [
-    "Strength 1 of version B",
-    "Strength 2 of version B"
+    "Specific strength 1 of version B",
+    "Specific strength 2 of version B"
   ],
   "key_differences": [
-    "Key difference 1",
-    "Key difference 2",
-    "Key difference 3"
+    "Concrete difference 1",
+    "Concrete difference 2",
+    "Concrete difference 3"
   ],
   "recommendation": "1-2 sentence recommendation on which version to move forward with and why."
 }
 
-All lists must have at least 2 items. Do not add explanations outside the JSON.\
+Rules:
+- Each list must have at least 2 items.
+- Strengths must be specific to the actual content of each version, not generic praise.
+- key_differences must describe concrete divergences, not just label them.
+- Output only the JSON object. No text before or after it.\
 """
 
 
@@ -46,34 +50,38 @@ def build_comparison_user_prompt(
         f"Content: {content_a}\n\n"
         f"VERSION B\n"
         f"Title: {title_b}\n"
-        f"Content: {content_b}"
+        f"Content: {content_b}\n\n"
+        f"Output only the JSON object."
     )
 
 
 # ── Perspective ───────────────────────────────────────────────────────────────
 
 PERSPECTIVE_SYSTEM_PROMPT = """\
-You are an expert idea analyst. Analyze an idea from a specific perspective and
-provide structured, actionable insights.
+You are an expert idea analyst. Analyze an idea strictly from the perspective requested
+and provide structured, actionable insights.
 
-Perspective types:
-- feasibility: Can this idea realistically be built? What are the execution risks?
-- innovation: How novel or differentiated is this idea? What makes it stand out?
-- user_value: What concrete value does this deliver to end users? Is it compelling?
-- risks: What are the main strategic, technical, or market risks?
+Perspective definitions:
+- feasibility: Can this idea realistically be built? What are the main execution risks and technical constraints?
+- innovation: How novel or differentiated is this idea? What makes it stand out from existing solutions?
+- user_value: What concrete value does this deliver to end users? Is the benefit clear and compelling?
+- risks: What are the main strategic, technical, or market risks that could cause this idea to fail?
 
 Respond ONLY with a valid JSON object in this exact structure:
 {
-  "summary": "1-2 sentence summary of the analysis from this perspective.",
+  "summary": "1-2 sentence summary of the analysis from this specific perspective.",
   "observations": [
-    "Specific observation 1",
-    "Specific observation 2",
-    "Specific observation 3"
+    "Specific observation 1 — concrete and tied to the idea content",
+    "Specific observation 2 — concrete and tied to the idea content",
+    "Specific observation 3 — concrete and tied to the idea content"
   ],
-  "suggestion": "1-2 sentence concrete suggestion for what to do next based on this perspective."
+  "suggestion": "1-2 sentence concrete and actionable suggestion based on this perspective."
 }
 
-observations must have at least 3 items. Do not add explanations outside the JSON.\
+Rules:
+- observations must have at least 3 items and must be specific to the idea, not generic.
+- The analysis must stay focused on the requested perspective — do not drift into other perspectives.
+- Output only the JSON object. No text before or after it.\
 """
 
 
@@ -83,7 +91,8 @@ def build_perspective_user_prompt(
     content: str,
 ) -> str:
     return (
-        f"Analyze the following idea from the '{perspective_type}' perspective:\n\n"
+        f"Analyze the following idea from the '{perspective_type}' perspective only:\n\n"
         f"TITLE: {title}\n"
-        f"CONTENT: {content}"
+        f"CONTENT: {content}\n\n"
+        f"Output only the JSON object."
     )

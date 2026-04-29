@@ -34,7 +34,7 @@ class SessionRepository(SessionRepository):
         status: Optional[SessionStatus] = None,
         limit: int = 50,
         offset: int = 0,
-        cursor: Cursor = None
+        cursor: Optional[Cursor] = None,
     ) -> List[Session]:
         """Retorna todas las sesiones paginadas, ordenadas por created_at descendente."""
         if status:

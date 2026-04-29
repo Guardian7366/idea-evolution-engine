@@ -43,6 +43,18 @@ Antes de ejecutar el proyecto necesitas:
 * Node.js 18+
 * npm
 
+### Modelo de IA (Ollama)
+
+* [Ollama](https://ollama.com/download) instalado y corriendo
+* Descarga **uno** de los dos perfiles según tu hardware:
+
+| Perfil | Modelo | VRAM mínima | Calidad | Comando |
+|---|---|---|---|---|
+| `capable` (recomendado) | llama3.1:latest | ~17 GB | Máxima | `ollama pull llama3.1` |
+| `fast` | qwen2.5 | ~5 GB | Buena | `ollama pull qwen2.5` |
+
+El perfil se selecciona con `MODEL_PROFILE=capable` o `MODEL_PROFILE=fast` en el `.env`.
+
 ---
 
 ## 🚀 Instalación y ejecución (PASO A PASO)
@@ -68,6 +80,14 @@ cd backend
 
 ### 2. Crear el archivo `.env`
 
+Copia el archivo de ejemplo incluido en el repo:
+
+```bash
+cp .env.example .env
+```
+
+O crea el `.env` manualmente:
+
 ```env
 APP_NAME="Idea Evolution Engine API"
 APP_VERSION=0.1.0
@@ -75,7 +95,10 @@ APP_ENV=development
 BACKEND_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 DATABASE_NAME=idea_evolution.db
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=qwen2.5
+
+# "capable" = llama3.1:latest (mejor calidad, requiere ~17 GB VRAM)
+# "fast"    = qwen2.5         (ligero, funciona con CPU o ~5 GB VRAM)
+MODEL_PROFILE=capable
 ```
 
 ---
@@ -112,15 +135,7 @@ pip install -r requirements.txt
 
 ---
 
-### 6. Inicializar base de datos
-
-```bash
-python -m app.init_db
-```
-
----
-
-### 7. Ejecutar backend
+### 6. Ejecutar backend
 
 ```bash
 uvicorn app.main:app --reload
