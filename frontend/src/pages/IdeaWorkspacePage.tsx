@@ -65,12 +65,14 @@ export function IdeaWorkspacePage() {
         isHistoryOpen ? 'ml-[320px]' : 'ml-0'
       }`}
     >
-          {!isHistoryOpen &&
-      <button className="mt-18 -ml-60 text-4xl size-13" type="button" onClick={() => setIsHistoryOpen(true)}>
+      {!isHistoryOpen &&  
+      <aside className="fixed left-0 h-screen bg-zinc-300 w-25">  
+      <button className="block mt-14 ml-3 text-4xl size-14 rounded-lg hover:bg-slate-100 p-2 size-18" type="button" onClick={() => setIsHistoryOpen(true)}>
           <img src="/src/assets/flowbite--open-sidebar-solid.png" alt="" />
-        </button>}
+        </button>
+        </aside>
+      }
       
-
       <IdeaInputSection
         ideaInput={ideaInput}
         isLoading={isLoading}

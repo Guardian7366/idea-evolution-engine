@@ -42,10 +42,10 @@ export function IdeaHistorySidebar({
       >
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-slate-200 p-4">
-            <div>
-              <h2 className="text-base font-semibold text-slate-900">History</h2>
-              <p className="text-sm text-slate-500">Recent ideas in this browser session</p>
+          <div>
+              <h2 className="text-3xl font-semibold text-slate-900">Chats</h2>
             </div>
+
 
             <button
               type="button"
@@ -59,7 +59,7 @@ export function IdeaHistorySidebar({
 
           <div className="flex-1 overflow-y-auto p-4">
             {ideas.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+              <div className="rounded-lg border border-dashed border-slate-300 p-4 text-base text-slate-500">
                 No recent ideas yet.
               </div>
             ) : (
