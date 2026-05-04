@@ -72,7 +72,6 @@ export function IdeaWorkspacePage() {
         </button>
         </aside>
       }
-      
       <IdeaInputSection
         ideaInput={ideaInput}
         isLoading={isLoading}
