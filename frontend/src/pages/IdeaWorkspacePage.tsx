@@ -47,31 +47,38 @@ export function IdeaWorkspacePage() {
     handleGenerateFinalSynthesis,
   } = useIdeaFlow()
 
-  return (
-    <>
-      <IdeaHistorySidebar
-        isOpen={isHistoryOpen}
-        onClose={() => setIsHistoryOpen(false)}
-        ideas={ideasHistory}
-        activeIdeaId={activeIdeaId}
-        onSelectIdea={(ideaId) => {
-          handleSelectHistoryIdea(ideaId)
-          setIsHistoryOpen(false)
-        }}
-      />
+const hasStarted = Boolean(ideaId)
+
+return (
+  <>
+    <IdeaHistorySidebar
+      isOpen={isHistoryOpen}
+      onClose={() => setIsHistoryOpen(false)}
+      ideas={ideasHistory}
+      activeIdeaId={activeIdeaId}
+      onSelectIdea={(ideaId) => {
+        handleSelectHistoryIdea(ideaId)
+        setIsHistoryOpen(false)
+      }}
+    />
 
     <div
       className={`space-y-8 transition-all duration-300 ${
         isHistoryOpen ? 'ml-[320px]' : 'ml-0'
       }`}
     >
-      {!isHistoryOpen &&  
-      <aside className="fixed left-0 h-screen bg-zinc-300 w-25">  
-      <button className="block mt-14 ml-3 text-4xl size-14 rounded-lg hover:bg-slate-100 p-2 size-18" type="button" onClick={() => setIsHistoryOpen(true)}>
-          <img src="/src/assets/flowbite--open-sidebar-solid.png" alt="" />
-        </button>
+
+        <aside className="fixed left-0 h-screen bg-zinc-300 w-25">
+          <button
+            className="block mt-4 ml-3 text-4xl rounded-lg hover:bg-slate-100 p-2 size-18"
+            type="button"
+            onClick={() => setIsHistoryOpen(true)}
+          >
+            <img src="/src/assets/flowbite--open-sidebar-solid.png" alt="" />
+          </button>
         </aside>
-      }
+
+      {/* INPUT: siempre visible */}
       <IdeaInputSection
         ideaInput={ideaInput}
         isLoading={isLoading}
@@ -80,52 +87,57 @@ export function IdeaWorkspacePage() {
         onGenerateVariants={handleStartFlow}
       />
 
-      <FlowStatusPanel
-        sessionId={sessionId}
-        ideaId={ideaId}
-        variantsCount={variants.length}
-      />
+      {/* TODO lo demás SOLO si ya empezó */}
+      {hasStarted && (
+        <>
+          <FlowStatusPanel
+            sessionId={sessionId}
+            ideaId={ideaId}
+            variantsCount={variants.length}
+          />
 
-      <VariantsList
-        variants={variants}
-        isSelecting={isSelectingVariant}
-        onSelectVariant={handleSelectVariant}
-      />
+          <VariantsList
+            variants={variants}
+            isSelecting={isSelectingVariant}
+            onSelectVariant={handleSelectVariant}
+          />
 
-      <ActiveVersionPanel activeVersion={activeVersion} />
+          <ActiveVersionPanel activeVersion={activeVersion} />
 
-      <VersionTransformPanel
-        hasActiveVersion={Boolean(activeVersion)}
-        transformInstruction={transformInstruction}
-        isTransforming={isTransformingVersion}
-        onInstructionChange={setTransformInstruction}
-        onRefine={handleRefineVersion}
-      />
+          <VersionTransformPanel
+            hasActiveVersion={Boolean(activeVersion)}
+            transformInstruction={transformInstruction}
+            isTransforming={isTransformingVersion}
+            onInstructionChange={setTransformInstruction}
+            onRefine={handleRefineVersion}
+          />
 
-      <VersionComparisonPanel
-        baseVersion={baseVersion}
-        activeVersion={activeVersion}
-        comparisonResult={comparisonResult}
-        isComparing={isComparingVersions}
-        onCompare={handleCompareVersions}
-      />
+          <VersionComparisonPanel
+            baseVersion={baseVersion}
+            activeVersion={activeVersion}
+            comparisonResult={comparisonResult}
+            isComparing={isComparingVersions}
+            onCompare={handleCompareVersions}
+          />
 
-      <PerspectiveExplorerPanel
-        hasActiveVersion={Boolean(activeVersion)}
-        selectedPerspective={selectedPerspective}
-        perspectiveResult={perspectiveResult}
-        isExploring={isExploringPerspective}
-        onPerspectiveChange={setSelectedPerspective}
-        onExplore={handleExplorePerspective}
-      />
+          <PerspectiveExplorerPanel
+            hasActiveVersion={Boolean(activeVersion)}
+            selectedPerspective={selectedPerspective}
+            perspectiveResult={perspectiveResult}
+            isExploring={isExploringPerspective}
+            onPerspectiveChange={setSelectedPerspective}
+            onExplore={handleExplorePerspective}
+          />
 
-      <FinalSynthesisPanel
-        hasActiveVersion={Boolean(activeVersion)}
-        synthesisResult={synthesisResult}
-        isGenerating={isGeneratingSynthesis}
-        onGenerate={handleGenerateFinalSynthesis}
-      />
+          <FinalSynthesisPanel
+            hasActiveVersion={Boolean(activeVersion)}
+            synthesisResult={synthesisResult}
+            isGenerating={isGeneratingSynthesis}
+            onGenerate={handleGenerateFinalSynthesis}
+          />
+        </>
+      )}
     </div>
-    </>
-  )
+  </>
+)
 }
