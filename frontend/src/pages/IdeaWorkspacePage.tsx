@@ -1,7 +1,6 @@
 import { PerspectiveExplorerPanel } from '../features/analysis/components/PerspectiveExplorerPanel'
 import { VersionComparisonPanel } from '../features/analysis/components/VersionComparisonPanel'
 import { IdeaInputSection } from '../features/idea-input/components/IdeaInputSection'
-import { FlowStatusPanel } from '../features/session/components/FlowStatusPanel'
 import { FinalSynthesisPanel } from '../features/synthesis/components/FinalSynthesisPanel'
 import { VariantsList } from '../features/variants/components/VariantsList'
 import { ActiveVersionPanel } from '../features/versioning/components/ActiveVersionPanel'
@@ -19,7 +18,6 @@ export function IdeaWorkspacePage() {
     activeIdeaId,
     handleSelectHistoryIdea,
     ideaInput,
-    sessionId,
     ideaId,
     variants,
     baseVersion,
@@ -90,11 +88,6 @@ return (
       {/* TODO lo demás SOLO si ya empezó */}
       {hasStarted && (
         <>
-          <FlowStatusPanel
-            sessionId={sessionId}
-            ideaId={ideaId}
-            variantsCount={variants.length}
-          />
 
           <VariantsList
             variants={variants}

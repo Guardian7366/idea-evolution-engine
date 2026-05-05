@@ -13,15 +13,22 @@ export function VariantsList({
   onSelectVariant,
 }: VariantsListProps) {
   return (
-    <section className="space-y-4">
-      <h3 className="text-xl font-semibold">Initial variants</h3>
+    <section className="mx-auto w-full max-w-5xl space-y-6">
+      <div className="text-center space-y-2">
+        <h3 className="text-2xl font-semibold text-slate-900">
+          Explore initial directions
+        </h3>
+        <p className="text-sm text-slate-600 max-w-2xl mx-auto">
+          Each variant represents a different way to approach your idea. Select one to continue evolving it.
+        </p>
+      </div>
 
       {variants.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-6 text-sm text-slate-500 text-center">
           No variants yet. Start the flow to see generated options.
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-6 md:grid-cols-2">
           {variants.map((variant) => (
             <VariantCard
               key={variant.variant_id}
