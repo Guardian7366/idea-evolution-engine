@@ -74,11 +74,11 @@ export function IdeaHistorySidebar({
                       onClick={() => onSelectIdea(idea.ideaId)}
                       className={`w-full rounded-lg border p-3 text-left transition ${
                         isActive
-                          ? 'border-slate-900 bg-slate-50'
+                          ? 'border-slate-200 bg-zinc-100'
                           : 'border-slate-200 hover:bg-slate-50'
                       }`}
                     >
-                      <div className="line-clamp-2 text-sm font-medium text-slate-900">
+                      <div className="line-clamp-2 text-sm font-medium text-slate-900 font-semibold">
                         {idea.input}
                       </div>
                       <div className="mt-2 text-xs text-slate-500">

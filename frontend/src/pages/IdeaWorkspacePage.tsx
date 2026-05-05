@@ -27,6 +27,7 @@ export function IdeaWorkspacePage() {
     perspectiveResult,
     synthesisResult,
     transformInstruction,
+    selectedVariantId,
     isLoading,
     isSelectingVariant,
     isTransformingVersion,
@@ -46,6 +47,8 @@ export function IdeaWorkspacePage() {
   } = useIdeaFlow()
 
 const hasStarted = Boolean(ideaId)
+
+const variantSelected = Boolean(activeVersion)
 
 return (
   <>
@@ -76,7 +79,6 @@ return (
           </button>
         </aside>
 
-      {/* INPUT: siempre visible */}
       <IdeaInputSection
         ideaInput={ideaInput}
         isLoading={isLoading}
@@ -85,49 +87,53 @@ return (
         onGenerateVariants={handleStartFlow}
       />
 
-      {/* TODO lo demás SOLO si ya empezó */}
       {hasStarted && (
         <>
 
           <VariantsList
             variants={variants}
             isSelecting={isSelectingVariant}
+            selectedVariantId={selectedVariantId}
             onSelectVariant={handleSelectVariant}
           />
 
-          <ActiveVersionPanel activeVersion={activeVersion} />
+          {variantSelected && (
+            <>
+              <ActiveVersionPanel activeVersion={activeVersion} />
 
-          <VersionTransformPanel
-            hasActiveVersion={Boolean(activeVersion)}
-            transformInstruction={transformInstruction}
-            isTransforming={isTransformingVersion}
-            onInstructionChange={setTransformInstruction}
-            onRefine={handleRefineVersion}
-          />
+              <VersionTransformPanel
+                hasActiveVersion={Boolean(activeVersion)}
+                transformInstruction={transformInstruction}
+                isTransforming={isTransformingVersion}
+                onInstructionChange={setTransformInstruction}
+                onRefine={handleRefineVersion}
+              />
 
-          <VersionComparisonPanel
-            baseVersion={baseVersion}
-            activeVersion={activeVersion}
-            comparisonResult={comparisonResult}
-            isComparing={isComparingVersions}
-            onCompare={handleCompareVersions}
-          />
+              <VersionComparisonPanel
+                baseVersion={baseVersion}
+                activeVersion={activeVersion}
+                comparisonResult={comparisonResult}
+                isComparing={isComparingVersions}
+                onCompare={handleCompareVersions}
+              />
 
-          <PerspectiveExplorerPanel
-            hasActiveVersion={Boolean(activeVersion)}
-            selectedPerspective={selectedPerspective}
-            perspectiveResult={perspectiveResult}
-            isExploring={isExploringPerspective}
-            onPerspectiveChange={setSelectedPerspective}
-            onExplore={handleExplorePerspective}
-          />
+              <PerspectiveExplorerPanel
+                hasActiveVersion={Boolean(activeVersion)}
+                selectedPerspective={selectedPerspective}
+                perspectiveResult={perspectiveResult}
+                isExploring={isExploringPerspective}
+                onPerspectiveChange={setSelectedPerspective}
+                onExplore={handleExplorePerspective}
+              />
 
-          <FinalSynthesisPanel
-            hasActiveVersion={Boolean(activeVersion)}
-            synthesisResult={synthesisResult}
-            isGenerating={isGeneratingSynthesis}
-            onGenerate={handleGenerateFinalSynthesis}
-          />
+              <FinalSynthesisPanel
+                hasActiveVersion={Boolean(activeVersion)}
+                synthesisResult={synthesisResult}
+                isGenerating={isGeneratingSynthesis}
+                onGenerate={handleGenerateFinalSynthesis}
+              />
+            </>
+          )}
         </>
       )}
     </div>
