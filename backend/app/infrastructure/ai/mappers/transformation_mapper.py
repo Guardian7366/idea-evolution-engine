@@ -1,48 +1,30 @@
-"""
-transformation_mapper.py — Maps raw Ollama JSON output to transformation content.
+from __future__ import annotations
 
-Called by: ollama_provider.py → transform_version
-Returns a dict with 'title' and 'content' keys used to build the IdeaVariant.
-"""
-
-import logging
-
-from app.infrastructure.ai.mappers.base import LLMParseError, extract_json
-
-logger = logging.getLogger(__name__)
-
-_TYPE_LABELS: dict[str, str] = {
-    "evolve": "Evolved",
-    "refine": "Refined",
-    "mutate": "Mutated",
-}
+from app.domain.entities.idea_version import IdeaVersion
+from app.domain.value_objects.transformation_type import TransformationType
+from app.domain.value_objects.version_status import VersionStatus
 
 
-def map_transformation(raw_json: str, transformation_type: str, instruction: str) -> dict[str, str]:
-    """
-    Parse Ollama's JSON response and return {'title': ..., 'content': ...}.
-
-    Falls back to a minimal result derived from the instruction itself,
-    and logs a warning so the fallback is not invisible.
-    """
-    try:
-        data = extract_json(raw_json)
-        title = str(data.get("title", "")).strip()
-        content = str(data.get("content", "")).strip()
-
-        if title and content:
-            return {"title": title[:80], "content": content}
-
-        logger.warning(
-            "[transformation_mapper] Respuesta incompleta — title=%s content=%s",
-            bool(title), bool(content),
-        )
-
-    except (LLMParseError, AttributeError, TypeError) as exc:
-        logger.warning("[transformation_mapper] No se pudo parsear: %s", exc)
-
-    prefix = _TYPE_LABELS.get(transformation_type, "Transformed")
-    return {
-        "title": f"{prefix} Version",
-        "content": f"Transformation ({transformation_type}): {instruction.rstrip('. ')}.",
-    }
+def map_transformation_payload_to_entity(
+    payload: dict,
+    *,
+    idea_id: str,
+    version_number: int,
+    parent_version_id: str,
+    transformation_type: TransformationType,
+    user_instruction: str | None,
+) -> IdeaVersion:
+    return IdeaVersion(
+        id=payload["id"],
+        idea_id=idea_id,
+        content=payload["content"],
+        version_number=version_number,
+        transformation_type=transformation_type,
+        source_variant_id=None,
+        parent_version_id=parent_version_id,
+        user_instruction=user_instruction,
+        is_active=True,
+        status=VersionStatus.ACTIVE,
+        created_at=payload["created_at"],
+        updated_at=payload["updated_at"],
+    )

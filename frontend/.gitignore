@@ -1,24 +1,116 @@
-# Logs
-logs
+# =========================
+# 🔥 GENERAL
+# =========================
+.DS_Store
+Thumbs.db
 *.log
+*.tmp
+*.temp
+
+# =========================
+# 🔐 ENV / SECRETS
+# =========================
+.env
+.env.*
+*.env
+
+# =========================
+# 🧠 PYTHON (BACKEND)
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Mypy / Ruff / caches
+.mypy_cache/
+.ruff_cache/
+
+# =========================
+# 🗄️ DATABASES
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+
+# 👉 Tu caso específico
+backend/app.db
+
+# =========================
+# 🤖 OLLAMA / MODELOS IA
+# =========================
+backend/ollama_models/*.bin
+backend/ollama_models/*.gguf
+backend/ollama_models/*.model
+
+# (Mantener Modelfiles)
+!backend/ollama_models/*.en
+!backend/ollama_models/*.es
+
+# =========================
+# ⚙️ NODE / FRONTEND
+# =========================
+node_modules/
+dist/
+build/
+.vite/
+
+# Logs npm/yarn
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# =========================
+# ⚛️ VITE / REACT
+# =========================
+frontend/dist/
+frontend/.vite/
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
+# =========================
+# 🧪 TEST OUTPUTS
+# =========================
+coverage/
+test-results/
+
+# =========================
+# 🧰 IDE / EDITORS
+# =========================
+.vscode/
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?
+
+# =========================
+# 📦 BUILD ARTIFACTS
+# =========================
+*.egg-info/
+*.whl
+pip-wheel-metadata/
+
+# =========================
+# 🔄 CACHE / MISC
+# =========================
+.cache/
+.temp/
+.tmp/
+
+# =========================
+# 🧾 OPTIONAL (si no quieres subirlos)
+# =========================
+# package-lock.json
+# pnpm-lock.yaml
+# yarn.lock

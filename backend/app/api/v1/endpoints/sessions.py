@@ -1,52 +1,31 @@
-"""
-sessions.py — Endpoints de la API para Sessions.
+from __future__ import annotations
 
-Cambios respecto al mock original:
-- create_session ahora es async y llama a SessionService en lugar de retornar mock hardcodeado.
-- Se agrega Depends(get_session_service) para inyección de dependencias.
-- El contrato de respuesta (SessionCreateResponse) NO cambia — el frontend sigue recibiendo
-  exactamente los mismos campos: session_id y message.
+from fastapi import APIRouter, Depends, HTTPException, status
 
-Lo que este archivo NO hace:
-- No contiene lógica de negocio. Solo recibe, delega al servicio, y mapea la respuesta.
-- No maneja el estado de la sesión directamente.
-"""
-from sqlite3 import Cursor
-from fastapi import APIRouter, Depends, HTTPException
-
-from app.application.dto.session_dto import SessionCreateResponse
+from app.api.deps import get_session_service
+from app.application.dto.session_dto import SessionCreateRequest, SessionResponse
 from app.application.services.session_service import SessionService
-from app.api.deps import get_session_service, get_db_cursor
 
 router = APIRouter()
 
 
-@router.post("", response_model=SessionCreateResponse)
-async def create_session(
+@router.post("/", response_model=SessionResponse)
+def create_session(
+    payload: SessionCreateRequest,
     service: SessionService = Depends(get_session_service),
-    cursor: Cursor = Depends(get_db_cursor)
-) -> SessionCreateResponse:
-    """
-    Crea una nueva sesión.
+) -> SessionResponse:
+    return service.create_session(payload)
 
-    Por ahora no recibe parámetros de entrada (mismo contrato que el mock).
-    Cuando el frontend esté listo para enviar un título, se agrega un body:
-        body: SessionCreateRequest = Body(...)
-    y se pasa body.title al servicio sin cambiar nada más.
 
-    El servicio usará "Nueva sesión" como título por defecto hasta entonces.
-    """
-    try:
-        session = await service.create_session(title="Nueva sesión", cursor=cursor)
-    except ValueError as e:
-        # En esta operación específica un ValueError sería inesperado,
-        # pero lo capturamos por consistencia con el resto de endpoints.
-        raise HTTPException(status_code=400, detail=str(e))
-
-    # Mapeamos la entidad Session → SessionCreateResponse.
-    # Este es el único lugar donde se toca el DTO.
-    # Si el DTO cambia (ej: agregar más campos), solo se modifica aquí.
-    return SessionCreateResponse(
-        session_id=session.id,
-        message="Session created successfully",
-    )
+@router.get("/{session_id}", response_model=SessionResponse)
+def get_session(
+    session_id: str,
+    service: SessionService = Depends(get_session_service),
+) -> SessionResponse:
+    session = service.get_session_by_id(session_id)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found.",
+        )
+    return session

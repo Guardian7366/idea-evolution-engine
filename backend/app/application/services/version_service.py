@@ -1,290 +1,208 @@
-"""
-version_service.py — Servicio de aplicación para IdeaVersions.
+from __future__ import annotations
 
-Gestiona el ciclo de vida completo de las versiones de una idea,
-incluyendo transformaciones con IA a través de OllamaProvider.
+from datetime import datetime, timezone
+from uuid import uuid4
 
-Flujo de estados de una versión:
-    DRAFT → ANALYZED → SELECTED → SUPERSEDED
-
-CAMBIOS TAREA 3 (Fortalecer versionado):
-
-1. get_latest_version() ahora usa el método del repositorio get_latest_by_idea_id()
-   en lugar de traer todas las versiones y calcular el máximo en memoria.
-   Más eficiente y preparado para cuando el repositorio esté en SQLite real.
-
-2. Se añadió get_active_version() que usa VersionRules.get_active_version()
-   para obtener la versión activa actual de una idea, no solo la más reciente.
-   La diferencia: "más reciente" y "activa" no siempre son lo mismo si hay
-   inconsistencias en el historial.
-
-3. Se añadió get_version_lineage() que construye el árbol de trazabilidad
-   completo de una idea usando get_lineage_info() de cada versión.
-   Útil para synthesis_service y para debug del historial evolutivo.
-"""
-from sqlite3 import Cursor
-from typing import Optional
-
+from app.application.dto.selection_dto import VariantSelectionRequest
+from app.application.dto.transformation_dto import TransformVersionRequest
+from app.application.dto.version_dto import VersionListResponse, VersionResponse
 from app.domain.entities.idea_version import IdeaVersion
-from app.domain.entities.idea_variant import IdeaVariant
 from app.domain.repositories.idea_repository import IdeaRepository
 from app.domain.repositories.version_repository import VersionRepository
-from app.domain.rules.version_rules import VersionRules
+from app.domain.rules.version_rules import ensure_variant_can_be_selected
 from app.domain.value_objects.transformation_type import TransformationType
-from app.infrastructure.ai.ollama_provider import OllamaProvider
+from app.domain.value_objects.version_status import VersionStatus
+from app.infrastructure.ai.mappers.transformation_mapper import (
+    map_transformation_payload_to_entity,
+)
+from app.infrastructure.ai.providers.mock_provider import MockAIProvider
+from app.infrastructure.ai.providers.ollama_provider import OllamaProvider
+from app.shared.errors.domain_errors import (
+    IdeaNotFoundError,
+    InvalidTransformationDomainError,
+    VariantNotFoundError,
+    VariantSelectionError,
+    VersionNotFoundDomainError,
+)
+from app.shared.utils.language import resolve_language
 
 
 class VersionService:
-    """
-    Servicio que gestiona el ciclo de vida de las versiones de una idea.
-
-    Dependencias:
-    - VersionRepository: persistir y recuperar versiones.
-    - IdeaRepository: verificar que la idea padre existe y obtener session_id.
-    - OllamaProvider: generar contenido transformado con IA.
-    """
-
     def __init__(
         self,
         version_repository: VersionRepository,
         idea_repository: IdeaRepository,
-        ollama_provider: OllamaProvider,
+        ai_provider: MockAIProvider | OllamaProvider,
     ) -> None:
-        self._version_repo = version_repository
-        self._idea_repo = idea_repository
-        self._provider = ollama_provider
+        self.version_repository = version_repository
+        self.idea_repository = idea_repository
+        self.ai_provider = ai_provider
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # CREAR VERSIONES
-    # ──────────────────────────────────────────────────────────────────────────
-
-    async def create_initial_version(
+    def create_initial_version_from_variant(
         self,
-        idea_id: str,
-        title: str,
-        content: str,
-        cursor: Cursor,
-    ) -> IdeaVersion:
-        """
-        Crea la primera versión (v1) de una idea recién creada.
-
-        Recupera la idea padre para obtener session_id, que IdeaVersion requiere
-        como campo obligatorio. Sin esto, create_initial() lanza TypeError.
-        """
-        idea = await self._idea_repo.get_by_id(idea_id, cursor)
+        data: VariantSelectionRequest,
+    ) -> VersionResponse:
+        idea = self.idea_repository.get_idea_by_id(data.idea_id)
         if idea is None:
-            raise ValueError(
-                f"No se puede crear una versión: la idea '{idea_id}' no existe. "
-                "Verifica que idea_service haya persistido la idea primero."
-            )
+            raise IdeaNotFoundError("Idea not found.")
 
-        existing = await self._version_repo.get_by_idea_id(idea_id, cursor)
-        if not VersionRules.can_create_next_version(existing):
-            raise ValueError(
-                f"La idea '{idea_id}' ya tiene el máximo de versiones permitidas "
-                f"({VersionRules.MAX_VERSIONS_PER_IDEA}). Genera una síntesis antes de continuar."
-            )
+        variant = self.idea_repository.get_variant_by_id(data.variant_id)
+        if variant is None:
+            raise VariantNotFoundError("Variant not found.")
 
-        version = IdeaVersion.create_initial(
-            session_id=idea.session_id,
-            idea_id=idea_id,
-            title=title,
-            content=content,
+        if variant.idea_id != data.idea_id:
+            raise VariantSelectionError("Variant does not belong to the provided idea.")
+
+        ensure_variant_can_be_selected(variant)
+
+        self.idea_repository.mark_variant_selected(data.variant_id)
+        self.version_repository.deactivate_active_versions(data.idea_id)
+
+        existing_versions = self.version_repository.list_by_idea_id(data.idea_id)
+        next_version_number = len(existing_versions) + 1
+
+        now = datetime.now(timezone.utc)
+
+        language = resolve_language(
+            preferred_language=data.language,
+            fallback_text=f"{idea.title or ''}\n{idea.content.value}\n{variant.title}\n{variant.description}",
         )
 
-        return await self._version_repo.save(version, cursor)
+        version = IdeaVersion(
+            id=f"ver_{uuid4().hex}",
+            idea_id=data.idea_id,
+            content=self._build_initial_version_content(
+                variant_title=variant.title,
+                variant_description=variant.description,
+                language=language,
+            ),
+            version_number=next_version_number,
+            transformation_type=TransformationType.VARIANT_SELECTION,
+            source_variant_id=data.variant_id,
+            is_active=True,
+            status=VersionStatus.ACTIVE,
+            created_at=now,
+            updated_at=now,
+        )
+        saved = self.version_repository.save(version)
+        return self._to_response(saved)
 
-    async def create_version_from_transformation(
-        self,
-        idea_id: str,
-        parent_version_id: str,
-        selected_variant: IdeaVariant,
-        cursor: Cursor,
-    ) -> IdeaVersion:
-        """
-        Crea una nueva versión a partir de una variante seleccionada.
-        Marca la versión padre como SUPERSEDED (cambia status e is_active).
-        """
-        parent_version = await self._version_repo.get_by_id(parent_version_id, cursor)
+    def transform_version(self, data: TransformVersionRequest) -> VersionResponse:
+        parent_version = self.version_repository.get_by_id(data.version_id)
         if parent_version is None:
-            raise ValueError(f"La versión padre '{parent_version_id}' no existe.")
+            raise VersionNotFoundDomainError("Version not found.")
 
-        existing = await self._version_repo.get_by_idea_id(idea_id, cursor)
-        if not VersionRules.can_create_next_version(existing):
-            raise ValueError(
-                f"La idea '{idea_id}' alcanzó el máximo de versiones permitidas. "
-                "Genera una síntesis final antes de seguir iterando."
+        idea = self.idea_repository.get_idea_by_id(parent_version.idea_id)
+        if idea is None:
+            raise IdeaNotFoundError("Idea not found.")
+
+        transformation_type = self._parse_transformation_type(data.transformation_type)
+
+        if transformation_type == TransformationType.REFINEMENT and not data.instruction:
+            raise InvalidTransformationDomainError(
+                "Refinement requires a user instruction."
             )
 
-        new_version = IdeaVersion.create_from_variant(
-            idea_id=idea_id,
-            parent_version=parent_version,
-            selected_variant=selected_variant,
+        self.version_repository.deactivate_active_versions(parent_version.idea_id)
+
+        existing_versions = self.version_repository.list_by_idea_id(parent_version.idea_id)
+        next_version_number = len(existing_versions) + 1
+
+        language = resolve_language(
+            preferred_language=data.language,
+            fallback_text=f"{data.instruction or ''}\n{parent_version.content}",
         )
 
-        # supersede() ahora actualiza status e is_active en un solo paso.
-        parent_version.supersede()
-        await self._version_repo.save(parent_version, cursor)
-
-        return await self._version_repo.save(new_version, cursor)
-
-    # ──────────────────────────────────────────────────────────────────────────
-    # TRANSFORMACIÓN CON IA
-    # ──────────────────────────────────────────────────────────────────────────
-
-    async def ai_transform(
-        self,
-        idea_id: str,
-        parent_version_id: str,
-        instruction: str,
-        transformation_type: TransformationType,
-        cursor: Cursor,
-    ) -> IdeaVersion:
-        """
-        Transformación con IA: llama a Ollama, construye la variante,
-        crea la nueva versión y avanza su pipeline hasta SELECTED.
-
-        Flujo:
-        1. Obtiene la versión actual.
-        2. Llama a Ollama para generar el contenido transformado.
-        3. Construye IdeaVariant con el resultado.
-        4. Crea nueva IdeaVersion (marca la padre como SUPERSEDED).
-        5. DRAFT → ANALYZED → SELECTED.
-        """
-        current_version = await self.get_version(idea_id, parent_version_id, cursor)
-
-        ai_result = await self._provider.transform_version(
-            current_title=current_version.title,
-            current_content=current_version.content,
-            transformation_type=transformation_type.value,
-            instruction=instruction,
-        )
-
-        transform_variant = IdeaVariant.create(
-            version_id=current_version.id,
-            title=ai_result["title"],
-            content=ai_result["content"],
+        payload = self.ai_provider.transform_version(
+            parent_content=parent_version.content,
             transformation_type=transformation_type,
+            instruction=data.instruction,
+            language=language,
         )
 
-        new_version = await self.create_version_from_transformation(
-            idea_id=idea_id,
-            parent_version_id=parent_version_id,
-            selected_variant=transform_variant,
-            cursor=cursor,
+        new_version = map_transformation_payload_to_entity(
+            payload,
+            idea_id=parent_version.idea_id,
+            version_number=next_version_number,
+            parent_version_id=parent_version.id,
+            transformation_type=transformation_type,
+            user_instruction=data.instruction,
         )
 
-        await self.mark_analyzed(idea_id, new_version.id, cursor)
-        return await self.mark_selected(idea_id, new_version.id, cursor)
+        saved = self.version_repository.save(new_version)
+        return self._to_response(saved)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # OBTENER VERSIONES
-    # ──────────────────────────────────────────────────────────────────────────
+    def activate_version(self, version_id: str) -> VersionResponse:
+        version = self.version_repository.get_by_id(version_id)
+        if version is None:
+            raise VersionNotFoundDomainError("Version not found.")
 
-    async def get_version(self, idea_id: str, version_id: str, cursor: Cursor) -> IdeaVersion:
-        """
-        Retorna una versión específica validando que pertenece a la idea indicada.
-        Lanza ValueError si no existe o no corresponde a esa idea.
-        """
-        version = await self._version_repo.get_by_id(version_id, cursor)
-        if version is None or version.idea_id != idea_id:
-            raise ValueError(
-                f"La versión '{version_id}' no existe para la idea '{idea_id}'."
+        idea = self.idea_repository.get_idea_by_id(version.idea_id)
+        if idea is None:
+            raise IdeaNotFoundError("Idea not found.")
+
+        self.version_repository.deactivate_active_versions(version.idea_id)
+        activated = self.version_repository.activate_version(version.id)
+
+        if activated is None:
+            raise VersionNotFoundDomainError("Version not found.")
+
+        return self._to_response(activated)
+
+    def list_versions_by_idea_id(self, idea_id: str) -> VersionListResponse:
+        idea = self.idea_repository.get_idea_by_id(idea_id)
+        if idea is None:
+            raise IdeaNotFoundError("Idea not found.")
+
+        versions = self.version_repository.list_by_idea_id(idea_id)
+        return VersionListResponse(items=[self._to_response(v) for v in versions])
+
+    def _parse_transformation_type(self, value: str) -> TransformationType:
+        normalized = value.strip().lower()
+
+        mapping = {
+            "evolution": TransformationType.EVOLUTION,
+            "refinement": TransformationType.REFINEMENT,
+            "mutation": TransformationType.MUTATION,
+        }
+
+        if normalized not in mapping:
+            raise InvalidTransformationDomainError(
+                "Invalid transformation_type. Use evolution, refinement or mutation."
             )
-        return version
 
-    async def get_latest_version(self, idea_id: str, cursor: Cursor) -> Optional[IdeaVersion]:
-        """
-        Retorna la versión con el version_number más alto de una idea.
+        return mapping[normalized]
 
-        MEJORA TAREA 3: ahora usa get_latest_by_idea_id() del repositorio
-        en lugar de traer todas las versiones y calcular el máximo en memoria.
-        Más eficiente y preparado para la implementación SQLite real.
-        """
-        return await self._version_repo.get_latest_by_idea_id(idea_id, cursor)
+    def _to_response(self, version: IdeaVersion) -> VersionResponse:
+        return VersionResponse(
+            id=version.id,
+            idea_id=version.idea_id,
+            content=version.content,
+            version_number=version.version_number,
+            transformation_type=version.transformation_type.value,
+            source_variant_id=version.source_variant_id,
+            parent_version_id=version.parent_version_id,
+            user_instruction=version.user_instruction,
+            is_active=version.is_active,
+            status=version.status.value,
+            created_at=version.created_at,
+            updated_at=version.updated_at,
+        )
 
-    async def get_active_version(self, idea_id: str, cursor: Cursor) -> Optional[IdeaVersion]:
-        """
-        Retorna la versión activa actual de una idea.
-
-        NUEVO TAREA 3: usa VersionRules.get_active_version() que filtra
-        por is_active y status. Diferente a get_latest_version() que solo
-        mira el version_number más alto — una versión puede ser la más reciente
-        pero no estar activa si hubo inconsistencias en el historial.
-
-        Retorna None si todas las versiones están SUPERSEDED.
-        """
-        versions = await self._version_repo.get_by_idea_id(idea_id, cursor)
-        return VersionRules.get_active_version(versions)
-
-    async def get_all_versions(self, idea_id: str, cursor: Cursor) -> list[IdeaVersion]:
-        """
-        Retorna todas las versiones de una idea ordenadas por version_number.
-        """
-        versions = await self._version_repo.get_by_idea_id(idea_id, cursor)
-        return sorted(versions, key=lambda v: v.version_number)
-
-    async def get_version_lineage(self, idea_id: str, cursor: Cursor) -> list[dict]:
-        """
-        Retorna el árbol de trazabilidad completo de una idea.
-
-        NUEVO TAREA 3: usa get_lineage_info() de cada IdeaVersion para
-        construir el historial evolutivo completo ordenado por version_number.
-
-        Útil para:
-        - synthesis_service: construir el contexto que se pasa a la IA.
-        - Debug: entender qué versión viene de cuál y por qué variante.
-
-        Retorna una lista de dicts con la info de trazabilidad de cada versión.
-        """
-        versions = await self.get_all_versions(idea_id, cursor)
-        return [v.get_lineage_info() for v in versions]
-
-    # ──────────────────────────────────────────────────────────────────────────
-    # AVANCE DE ESTADOS
-    # ──────────────────────────────────────────────────────────────────────────
-
-    async def mark_analyzed(self, idea_id: str, version_id: str, cursor: Cursor) -> IdeaVersion:
-        """
-        DRAFT → ANALYZED: la IA terminó de procesar esta versión.
-        Si falla: la versión no está en DRAFT.
-        """
-        version = await self.get_version(idea_id, version_id, cursor)
-        version.mark_analyzed()
-        return await self._version_repo.save(version, cursor)
-
-    async def mark_selected(self, idea_id: str, version_id: str, cursor: Cursor) -> IdeaVersion:
-        """
-        ANALYZED → SELECTED: el usuario eligió esta versión para avanzar.
-        Si falla: la versión no está en ANALYZED todavía.
-        """
-        version = await self.get_version(idea_id, version_id, cursor)
-        version.mark_selected()
-        return await self._version_repo.save(version, cursor)
-
-    # ──────────────────────────────────────────────────────────────────────────
-    # VARIANTES
-    # ──────────────────────────────────────────────────────────────────────────
-
-    async def add_variant_to_version(
+    def _build_initial_version_content(
         self,
-        idea_id: str,
-        version_id: str,
-        variant: IdeaVariant,
-        cursor: Cursor,
-    ) -> IdeaVersion:
-        """
-        Agrega una variante a una versión.
-        IdeaVersion.add_variant() valida que esté en DRAFT o ANALYZED.
-        """
-        version = await self.get_version(idea_id, version_id, cursor)
-        version.add_variant(variant)
-        return await self._version_repo.save(version, cursor)
+        *,
+        variant_title: str,
+        variant_description: str,
+        language: str,
+    ) -> str:
+        if language == "es":
+            return (
+                f"Versión inicial creada a partir de la variante: "
+                f"{variant_title}. {variant_description}"
+            )
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # UTILIDADES
-    # ──────────────────────────────────────────────────────────────────────────
-
-    async def assert_version_exists(self, idea_id: str, version_id: str, cursor: Cursor) -> IdeaVersion:
-        """Verifica que una versión existe. Utilitario para otros servicios."""
-        return await self.get_version(idea_id, version_id, cursor)
+        return (
+            f"Initial version created from variant: "
+            f"{variant_title}. {variant_description}"
+        )

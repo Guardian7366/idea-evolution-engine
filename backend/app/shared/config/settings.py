@@ -1,109 +1,86 @@
-from pathlib import Path
-from dotenv import load_dotenv
-import os
-import sys
-from typing import Any
+from __future__ import annotations
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic_core import ValidationError
+from functools import lru_cache
+from typing import Annotated, List
 
-# Load environment variables from the .env file at the project root.
-load_dotenv()
-
-# Resolve the backend directory so the .env file can be loaded reliably.
-BACKEND_DIR = Path(__file__).resolve().parents[4]
-
-# ── Model profiles ────────────────────────────────────────────────────────────
-# Each profile bundles a model name with its recommended timeout.
-# Select a profile via MODEL_PROFILE env var.
-# OLLAMA_MODEL and OLLAMA_TIMEOUT always override the profile values if set.
-
-_MODEL_PROFILES: dict[str, dict[str, Any]] = {
-    # Full-precision Llama 3.1 8B — best quality, requires ~17 GB VRAM (fits RX 7900 XT).
-    "capable": {
-        "model": "llama3.1:latest",
-        "timeout": 180.0,
-    },
-    # Qwen 2.5 7B — lightweight, runs on CPU or low-VRAM GPUs (~5 GB VRAM at Q4).
-    "fast": {
-        "model": "qwen2.5",
-        "timeout": 120.0,
-    },
-}
-
-_VALID_PROFILES = set(_MODEL_PROFILES.keys())
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Central application settings loaded from environment variables."""
-
-    app_name: str = Field(default=os.getenv("APP_NAME", "Idea Evolution Engine API"))
-    app_version: str = Field(default=os.getenv("APP_VERSION", "0.1.0"))
-    app_env: str = Field(default=os.getenv("APP_ENV", "development"))
-    database_name: str = Field(default=os.getenv("DATABASE_NAME", "idea_evolution.db"))
-
-    # Comma-separated origins supported automatically by pydantic-settings.
-    backend_cors_origins: str = Field(
-        default=os.getenv("BACKEND_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
-    )
-
-    # Ollama connection
-    ollama_base_url: str = Field(default=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
-
-    # Active model profile. Must be one of _VALID_PROFILES.
-    # Individual OLLAMA_MODEL / OLLAMA_TIMEOUT env vars take priority over the profile.
-    model_profile: str = Field(default=os.getenv("MODEL_PROFILE", "capable"))
-
     model_config = SettingsConfigDict(
-        env_file=BACKEND_DIR / ".env",
+        env_file=".env",
         env_file_encoding="utf-8",
+        case_sensitive=True,
         extra="ignore",
-        protected_namespaces=("settings_",),
     )
 
-    # ── Computed properties (profile + optional env override) ─────────────────
+    rate_limit_enabled: bool = Field(default=True, alias="RATE_LIMIT_ENABLED")
+    rate_limit_requests: int = Field(default=120, ge=1, le=1000, alias="RATE_LIMIT_REQUESTS")
+    rate_limit_window_seconds: int = Field(default=60, ge=1, le=3600, alias="RATE_LIMIT_WINDOW_SECONDS")
 
-    @property
-    def ollama_model(self) -> str:
-        """Model name: OLLAMA_MODEL env var > profile default."""
-        override = os.getenv("OLLAMA_MODEL")
-        if override:
-            return override
-        profile = _MODEL_PROFILES.get(self.model_profile, _MODEL_PROFILES["capable"])
-        return profile["model"]
+    app_name: str = Field(default="Idea Evolution Engine API", alias="APP_NAME")
+    app_env: str = Field(default="development", alias="APP_ENV")
+    app_debug: bool = Field(default=False, alias="APP_DEBUG")
+    app_host: str = Field(default="127.0.0.1", alias="APP_HOST")
+    app_port: int = Field(default=8000, alias="APP_PORT")
+    api_v1_prefix: str = Field(default="/api/v1", alias="API_V1_PREFIX")
 
-    @property
-    def ollama_timeout(self) -> float:
-        """Request timeout in seconds: OLLAMA_TIMEOUT env var > profile default."""
-        override = os.getenv("OLLAMA_TIMEOUT")
-        if override:
-            return float(override)
-        profile = _MODEL_PROFILES.get(self.model_profile, _MODEL_PROFILES["capable"])
-        return profile["timeout"]
+    backend_cors_origins: Annotated[List[str], NoDecode] = Field(
+        default=["http://localhost:5173", "http://127.0.0.1:5173"],
+        alias="BACKEND_CORS_ORIGINS",
+    )
 
-    @property
-    def cors_origins_list(self) -> list[str]:
-        """Return normalized CORS origins as a clean list."""
-        return [
-            origin.strip()
-            for origin in self.backend_cors_origins.split(",")
-            if origin.strip()
-        ]
+    security_headers_enabled: bool = Field(
+        default=True,
+        alias="SECURITY_HEADERS_ENABLED",
+    )
 
-    @property
-    def active_profile(self) -> dict[str, Any]:
-        """Return the full profile dict currently active."""
-        return _MODEL_PROFILES.get(self.model_profile, _MODEL_PROFILES["capable"])
+    trusted_hosts: Annotated[List[str], NoDecode] = Field(
+        default=["127.0.0.1", "localhost"],
+        alias="TRUSTED_HOSTS",
+    )
+
+    sqlite_path: str = Field(default="app.db", alias="SQLITE_PATH")
+
+    llm_provider: str = Field(default="mock", alias="LLM_PROVIDER")
+    ollama_base_url: str = Field(default="http://localhost:11434", alias="OLLAMA_BASE_URL")
+
+    ollama_model_default: str = Field(
+        default="qwen2.5:3b",
+        alias="OLLAMA_MODEL_DEFAULT",
+    )
+    ollama_model_es: str = Field(
+        default="qwen2.5:3b-enforce-es",
+        alias="OLLAMA_MODEL_ES",
+    )
+    ollama_model_en: str = Field(
+        default="qwen2.5:3b-enforce-en",
+        alias="OLLAMA_MODEL_EN",
+    )
+
+    @field_validator("backend_cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value: str | List[str]) -> List[str]:
+        if isinstance(value, list):
+            return value
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return []
+
+    @field_validator("trusted_hosts", mode="before")
+    @classmethod
+    def parse_trusted_hosts(cls, value: str | List[str]) -> List[str]:
+        if isinstance(value, list):
+            return value
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return []
 
 
-try:
-    settings = Settings()
-    if settings.model_profile not in _VALID_PROFILES:
-        print(
-            f"[settings] Unknown MODEL_PROFILE '{settings.model_profile}'. "
-            f"Valid options: {sorted(_VALID_PROFILES)}. Falling back to 'capable'."
-        )
-except ValidationError:
-    print("Error loading settings. Please check your .env file and environment variables.")
-    sys.exit(1)
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()

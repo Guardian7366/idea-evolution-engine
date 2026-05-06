@@ -1,397 +1,427 @@
-import { useState } from 'react'
-
+import { useEffect, useState } from "react";
+import { ideaService } from "../services/idea.service";
+import { initialIdeaFlowState } from "../store/idea-flow.store";
+import type {
+  AnalyzePerspectivePayload,
+  CompareVersionsPayload,
+  CreateIdeaPayload,
+  CreateSessionPayload,
+  GenerateSynthesisPayload,
+  LanguageMode,
+  SelectVariantPayload,
+  TransformVersionPayload,
+} from "../types/idea";
 import {
-  compareVersions,
-  createIdea,
-  createSession,
-  explorePerspective,
-  generateFinalSynthesis,
-  generateVariants,
-  selectVariant,
-  transformVersion,
-} from '../services/idea.service'
-import { normalizeUserText } from '../shared/utils/text'
-import type {
-  ActiveIdeaVersion,
-  FinalSynthesisResult,
-  IdeaVariantItem,
-  PerspectiveAnalysisResult,
-  PerspectiveType,
-  VersionComparisonResult,
-} from '../types/idea'
-import type {
-  IdeaHistoryItem
-} from '../features/session/components/IdeaHistorySidebar'
+  clearWorkspaceFromStorage,
+  loadWorkspaceFromStorage,
+  saveWorkspaceToStorage,
+} from "../shared/utils/workspaceStorage";
 
-function getErrorMessage(error: unknown, fallback: string): string {
-  // Intentamos leer el mensaje real del backend si viene en error.response.data.detail
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'response' in error &&
-    typeof (error as any).response === 'object' &&
-    (error as any).response !== null &&
-    'data' in (error as any).response &&
-    typeof (error as any).response.data === 'object' &&
-    (error as any).response.data !== null &&
-    'detail' in (error as any).response.data &&
-    typeof (error as any).response.data.detail === 'string'
-  ) {
-    return (error as any).response.data.detail
+function extractApiError(error: unknown, fallbackMessage: string): string {
+  const maxMessageLength = 300;
+
+  function normalizeMessage(message: string): string {
+    const trimmed = message.trim();
+
+    if (!trimmed) {
+      return fallbackMessage;
+    }
+
+    if (trimmed.length > maxMessageLength) {
+      return `${trimmed.slice(0, maxMessageLength).trim()}...`;
+    }
+
+    return trimmed;
   }
 
-  return fallback
+  if (typeof error === "object" && error !== null && "response" in error) {
+    const response = (error as { response?: { data?: unknown } }).response;
+    const data = response?.data;
+
+    if (typeof data === "object" && data !== null) {
+      const detail = (data as { detail?: unknown }).detail;
+      const apiError = (data as { error?: { message?: unknown } }).error;
+
+      if (typeof detail === "string") {
+        return normalizeMessage(detail);
+      }
+
+      if (typeof apiError?.message === "string") {
+        return normalizeMessage(apiError.message);
+      }
+    }
+  }
+
+  if (error instanceof Error) {
+    return normalizeMessage(error.message);
+  }
+
+  return fallbackMessage;
 }
 
 export function useIdeaFlow() {
-  const [ideaInput, setIdeaInput] = useState('')
-  const [sessionId, setSessionId] = useState('')
-  const [ideaId, setIdeaId] = useState('')
-  const [variants, setVariants] = useState<IdeaVariantItem[]>([])
-  const [baseVersion, setBaseVersion] = useState<ActiveIdeaVersion | null>(null)
-  const [activeVersion, setActiveVersion] = useState<ActiveIdeaVersion | null>(
-    null,
-  )
-  const [ideasHistory, setIdeasHistory] = useState<IdeaHistoryItem[]>([])
-  const [activeIdeaId, setActiveIdeaId] = useState<string | null>(null)
-  const [comparisonResult, setComparisonResult] =
-    useState<VersionComparisonResult | null>(null)
-  const [selectedPerspective, setSelectedPerspective] =
-    useState<PerspectiveType>('user_value')
-  const [perspectiveResult, setPerspectiveResult] =
-    useState<PerspectiveAnalysisResult | null>(null)
-  const [synthesisResult, setSynthesisResult] =
-    useState<FinalSynthesisResult | null>(null)
-  const [transformInstruction, setTransformInstruction] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [isSelectingVariant, setIsSelectingVariant] = useState(false)
-  const [isTransformingVersion, setIsTransformingVersion] = useState(false)
-  const [isComparingVersions, setIsComparingVersions] = useState(false)
-  const [isExploringPerspective, setIsExploringPerspective] = useState(false)
-  const [isGeneratingSynthesis, setIsGeneratingSynthesis] = useState(false)
-  const [errorMessage, setErrorMessage] = useState('')
-  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
+  const [state, setState] = useState(initialIdeaFlowState);
+  const [hasBootstrapped, setHasBootstrapped] = useState(false);
 
-  const handleStartFlow = async () => {
-    const normalizedIdeaInput = normalizeUserText(ideaInput)
+  const setLoading = (isLoading: boolean) => {
+    setState((prev) => ({ ...prev, isLoading }));
+  };
 
-    if (normalizedIdeaInput.length < 3) {
-      setErrorMessage('Please enter a more complete idea before continuing.')
-      return
-    }
+  const setError = (error: string | null) => {
+    setState((prev) => ({ ...prev, error }));
+  };
 
-    setIsLoading(true)
-    setErrorMessage('')
+  const setLanguageMode = (languageMode: LanguageMode) => {
+    setState((prev) => ({ ...prev, languageMode }));
+  };
 
-    // Reset the previous flow results before starting a new one.
-    setSessionId('')
-    setIdeaId('')
-    setVariants([])
-    setBaseVersion(null)
-    setActiveVersion(null)
-    setComparisonResult(null)
-    setPerspectiveResult(null)
-    setSynthesisResult(null)
-    setTransformInstruction('')
-    setActiveIdeaId(null)
-
+  const bootstrapWorkspace = async (params: {
+    sessionId: string;
+    ideaId: string;
+    languageMode: LanguageMode;
+  }) => {
     try {
-      // Step 1: create session
-      const sessionResponse = await createSession()
+      setLoading(true);
+      setError(null);
 
-      // Step 2: create idea
-      const ideaResponse = await createIdea({
-        session_id: sessionResponse.session_id,
-        initial_prompt: normalizedIdeaInput,
-      })
+      const [session, idea, variants, versions] = await Promise.all([
+        ideaService.getSessionById(params.sessionId),
+        ideaService.getIdeaById(params.ideaId),
+        ideaService.listVariants(params.ideaId),
+        ideaService.listVersions(params.ideaId),
+      ]);
 
-      // Step 3: generate variants
-      const variantsResponse = await generateVariants({
-        session_id: sessionResponse.session_id,
-        idea_id: ideaResponse.idea_id,
-        initial_prompt: normalizedIdeaInput,
-      })
+      const activeVersion =
+        versions.items.find((version) => version.is_active) ?? null;
 
-      setIdeaInput(normalizedIdeaInput)
-      setSessionId(sessionResponse.session_id)
-      setIdeaId(ideaResponse.idea_id)
-      setVariants(variantsResponse.variants)
-
-      const trimmedIdea = normalizedIdeaInput
-
-      if (trimmedIdea.length < 3) return
-
-      // ✅ Usamos el idea_id REAL del backend, no uno fake
-      const realIdeaId = ideaResponse.idea_id
-
-      setIdeasHistory((prev) => [
-        {
-          ideaId: realIdeaId,
-          input: trimmedIdea,
-          createdAt: new Date().toISOString(),
-        },
+      setState((prev) => ({
         ...prev,
-      ])
-
-      setActiveIdeaId(realIdeaId)
+        session,
+        idea,
+        variants: variants.items,
+        versions: versions.items,
+        activeVersion,
+        selectedVersion: activeVersion,
+        latestAnalysis: null,
+        latestComparison: null,
+        latestSynthesis: null,
+        languageMode: params.languageMode,
+        error: null,
+      }));
     } catch (error) {
-      console.error('Frontend flow error:', error)
-      setErrorMessage(
-        getErrorMessage(
-          error,
-          'Failed to connect with backend API. Check browser console for details.',
-        ),
-      )
+      clearWorkspaceFromStorage();
+      setError(
+        extractApiError(error, "No se pudo restaurar el workspace guardado."),
+      );
     } finally {
-      setIsLoading(false)
+      setLoading(false);
+      setHasBootstrapped(true);
     }
-  }
+  };
 
-  const handleSelectHistoryIdea = (ideaId: string) => {
-    const selectedIdea = ideasHistory.find((idea) => idea.ideaId === ideaId)
-    if (!selectedIdea) return
+  useEffect(() => {
+    const stored = loadWorkspaceFromStorage();
 
-    // IMPORTANTE:
-    // Este historial todavía es local y NO reconstruye el flujo real desde backend.
-    // Por eso, al seleccionar una idea del historial:
-    // 1. cargamos su texto en el input
-    // 2. limpiamos el flujo visual actual para evitar inconsistencias
-    setActiveIdeaId(ideaId)
-    setIdeaInput(selectedIdea.input)
-
-    setSessionId('')
-    setIdeaId('')
-    setVariants([])
-    setBaseVersion(null)
-    setActiveVersion(null)
-    setComparisonResult(null)
-    setPerspectiveResult(null)
-    setSynthesisResult(null)
-    setTransformInstruction('')
-    setErrorMessage('')
-  }
-
-  const handleSelectVariant = async (variantId: string) => {
-  if (!sessionId || !ideaId) {
-    setErrorMessage('Session and idea must exist before selecting a variant.')
-    return
-  }
-
-  // IMPORTANTE:
-  // Buscamos la variante real seleccionada para enviar también
-  // su título y contenido al backend.
-  const selectedVariant = variants.find(
-    (variant) => variant.variant_id === variantId,
-  )
-
-  if (!selectedVariant) {
-    setErrorMessage('Selected variant was not found in the current flow.')
-    return
-  }
-
-  setIsSelectingVariant(true)
-  setErrorMessage('')
-  setComparisonResult(null)
-  setPerspectiveResult(null)
-  setSynthesisResult(null)
-
-  try {
-    const response = await selectVariant({
-      session_id: sessionId,
-      idea_id: ideaId,
-      variant_id: variantId,
-      variant_title: selectedVariant.title,
-      variant_content: selectedVariant.content,
-    })
-
-    // The selected variant becomes both the base version and current active version.
-    setBaseVersion(response.active_version)
-    setActiveVersion(response.active_version)
-    setSelectedVariantId(variantId)
-    setTransformInstruction('')
-  } catch (error) {
-    console.error('Variant selection error:', error)
-    setErrorMessage(
-      getErrorMessage(
-        error,
-        'Failed to select variant. Check browser console for details.',
-      ),
-    )
-  } finally {
-    setIsSelectingVariant(false)
-  }
-}
-  const handleRefineVersion = async () => {
-    if (!sessionId || !ideaId || !activeVersion) {
-      setErrorMessage('An active version is required before refining it.')
-      return
+    if (stored.sessionId && stored.ideaId) {
+      void bootstrapWorkspace({
+        sessionId: stored.sessionId,
+        ideaId: stored.ideaId,
+        languageMode: stored.languageMode,
+      });
+      return;
     }
 
-    const normalizedInstruction = normalizeUserText(transformInstruction)
+    setState((prev) => ({
+      ...prev,
+      languageMode: stored.languageMode,
+    }));
+    setHasBootstrapped(true);
+  }, []);
 
-    if (normalizedInstruction.length < 3) {
-      setErrorMessage('Please write a clearer transformation instruction.')
-      return
+  useEffect(() => {
+    if (!hasBootstrapped) {
+      return;
     }
 
-    setIsTransformingVersion(true)
-    setErrorMessage('')
-    setComparisonResult(null)
-    setPerspectiveResult(null)
-    setSynthesisResult(null)
+    saveWorkspaceToStorage({
+      sessionId: state.session?.id ?? null,
+      ideaId: state.idea?.id ?? null,
+      languageMode: state.languageMode,
+    });
+  }, [hasBootstrapped, state.session?.id, state.idea?.id, state.languageMode]);
 
+  const createSession = async (payload: CreateSessionPayload) => {
     try {
-      const response = await transformVersion({
-        session_id: sessionId,
-        idea_id: ideaId,
-        version_id: activeVersion.version_id,
-        transformation_type: 'refine',
-        instruction: normalizedInstruction,
-      })
+      setLoading(true);
+      setError(null);
 
-      setTransformInstruction(normalizedInstruction)
-      setActiveVersion(response.new_active_version)
+      const session = await ideaService.createSession(payload);
+
+      setState((prev) => ({
+        ...prev,
+        session,
+      }));
+
+      return session;
     } catch (error) {
-      console.error('Version transformation error:', error)
-      setErrorMessage(
-        getErrorMessage(
-          error,
-          'Failed to transform version. Check browser console for details.',
-        ),
-      )
+      setError(extractApiError(error, "No se pudo crear la sesión."));
+      throw error;
     } finally {
-      setIsTransformingVersion(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const handleCompareVersions = async () => {
-    if (!sessionId || !ideaId || !baseVersion || !activeVersion) {
-      setErrorMessage('Two comparable versions are required before comparing.')
-      return
-    }
-
-    if (baseVersion.version_id === activeVersion.version_id) {
-      setErrorMessage('Transform the active version before comparing it.')
-      return
-    }
-
-    setIsComparingVersions(true)
-    setErrorMessage('')
-
+  const createIdea = async (payload: CreateIdeaPayload) => {
     try {
-      const response = await compareVersions({
-        session_id: sessionId,
-        idea_id: ideaId,
-        version_id_a: baseVersion.version_id,
-        version_id_b: activeVersion.version_id,
-      })
+      setLoading(true);
+      setError(null);
 
-      setComparisonResult(response.comparison)
+      const idea = await ideaService.createIdea(payload);
+
+      setState((prev) => ({
+        ...prev,
+        idea,
+        variants: [],
+        versions: [],
+        activeVersion: null,
+        selectedVersion: null,
+        latestAnalysis: null,
+        latestComparison: null,
+        latestSynthesis: null,
+      }));
+
+      return idea;
     } catch (error) {
-      console.error('Version comparison error:', error)
-      setErrorMessage(
-        getErrorMessage(
-          error,
-          'Failed to compare versions. Check browser console for details.',
-        ),
-      )
+      setError(extractApiError(error, "No se pudo registrar la idea."));
+      throw error;
     } finally {
-      setIsComparingVersions(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const handleExplorePerspective = async () => {
-    if (!sessionId || !ideaId || !activeVersion) {
-      setErrorMessage('An active version is required before exploring it.')
-      return
-    }
-
-    setIsExploringPerspective(true)
-    setErrorMessage('')
-
+  const generateVariants = async (ideaId: string) => {
     try {
-      const response = await explorePerspective({
-        session_id: sessionId,
-        idea_id: ideaId,
-        version_id: activeVersion.version_id,
-        perspective_type: selectedPerspective,
-      })
+      setLoading(true);
+      setError(null);
 
-      setPerspectiveResult(response.analysis)
+      const response = await ideaService.generateVariants(ideaId, state.languageMode);
+
+      setState((prev) => ({
+        ...prev,
+        variants: response.items,
+      }));
+
+      return response.items;
     } catch (error) {
-      console.error('Perspective exploration error:', error)
-      setErrorMessage(
-        getErrorMessage(
-          error,
-          'Failed to explore perspective. Check browser console for details.',
-        ),
-      )
+      setError(extractApiError(error, "No se pudieron generar las variantes."));
+      throw error;
     } finally {
-      setIsExploringPerspective(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const handleGenerateFinalSynthesis = async () => {
-    if (!sessionId || !ideaId || !activeVersion) {
-      setErrorMessage('An active version is required before generating synthesis.')
-      return
-    }
-
-    setIsGeneratingSynthesis(true)
-    setErrorMessage('')
-
+  const selectVariant = async (payload: SelectVariantPayload) => {
     try {
-      const response = await generateFinalSynthesis({
-        session_id: sessionId,
-        idea_id: ideaId,
-        version_id: activeVersion.version_id,
-      })
+      setLoading(true);
+      setError(null);
 
-      setSynthesisResult(response.synthesis)
+      const version = await ideaService.selectVariant({
+        ...payload,
+        language: state.languageMode,
+      });
+
+      const [versions, variants] = await Promise.all([
+        ideaService.listVersions(payload.idea_id),
+        ideaService.listVariants(payload.idea_id),
+      ]);
+
+      setState((prev) => ({
+        ...prev,
+        variants: variants.items,
+        activeVersion: version,
+        selectedVersion: version,
+        versions: versions.items,
+        latestAnalysis: null,
+        latestComparison: null,
+        latestSynthesis: null,
+      }));
+
+      return version;
     } catch (error) {
-      console.error('Final synthesis generation error:', error)
-      setErrorMessage(
-        getErrorMessage(
-          error,
-          'Failed to generate final synthesis. Check browser console for details.',
-        ),
-      )
+      setError(extractApiError(error, "No se pudo seleccionar la variante."));
+      throw error;
     } finally {
-      setIsGeneratingSynthesis(false)
+      setLoading(false);
     }
-  }
+  };
+
+  const transformVersion = async (payload: TransformVersionPayload, ideaId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const version = await ideaService.transformVersion({
+        ...payload,
+        language: state.languageMode,
+      });
+
+      const versions = await ideaService.listVersions(ideaId);
+
+      setState((prev) => ({
+        ...prev,
+        activeVersion: version,
+        selectedVersion: version,
+        versions: versions.items,
+        latestAnalysis: null,
+        latestComparison: null,
+        latestSynthesis: null,
+      }));
+
+      return version;
+    } catch (error) {
+      setError(extractApiError(error, "No se pudo transformar la versión."));
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const activateVersion = async (versionId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const version = await ideaService.activateVersion({
+        version_id: versionId,
+      });
+
+      const versions = await ideaService.listVersions(version.idea_id);
+
+      setState((prev) => ({
+        ...prev,
+        activeVersion: version,
+        selectedVersion: version,
+        versions: versions.items,
+      }));
+
+      return version;
+    } catch (error) {
+      setError(extractApiError(error, "No se pudo activar la versión."));
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const analyzePerspective = async (payload: AnalyzePerspectivePayload) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const analysis = await ideaService.analyzePerspective({
+        ...payload,
+        language: state.languageMode,
+      });
+
+      setState((prev) => ({
+        ...prev,
+        latestAnalysis: analysis,
+      }));
+
+      return analysis;
+    } catch (error) {
+      setError(extractApiError(error, "No se pudo generar el análisis."));
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const compareVersions = async (payload: CompareVersionsPayload) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const comparison = await ideaService.compareVersions({
+        ...payload,
+        language: state.languageMode,
+      });
+
+      setState((prev) => ({
+        ...prev,
+        latestComparison: comparison,
+      }));
+
+      return comparison;
+    } catch (error) {
+      setError(extractApiError(error, "No se pudo generar la comparación."));
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateSynthesis = async (payload: GenerateSynthesisPayload) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const synthesis = await ideaService.generateSynthesis({
+        ...payload,
+        language: state.languageMode,
+      });
+
+      setState((prev) => ({
+        ...prev,
+        latestSynthesis: synthesis,
+      }));
+
+      return synthesis;
+    } catch (error) {
+      setError(extractApiError(error, "No se pudo generar la síntesis."));
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearWorkspace = () => {
+    clearWorkspaceFromStorage();
+    setState(initialIdeaFlowState);
+    setHasBootstrapped(true);
+  };
+
+  const selectVersionFromHistory = (versionId: string) => {
+    setState((prev) => {
+      const version = prev.versions.find((item) => item.id === versionId) ?? null;
+
+      if (!version) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        selectedVersion: version,
+      };
+    });
+  };
 
   return {
-    ideaInput,
-    sessionId,
-    ideaId,
-    variants,
-    baseVersion,
-    activeVersion,
-    selectedVariantId,
-    comparisonResult,
-    selectedPerspective,
-    perspectiveResult,
-    synthesisResult,
-    transformInstruction,
-    isLoading,
-    isSelectingVariant,
-    isTransformingVersion,
-    isComparingVersions,
-    isExploringPerspective,
-    isGeneratingSynthesis,
-    errorMessage,
-    setIdeaInput,
-    setSelectedPerspective,
-    setTransformInstruction,
-    handleStartFlow,
-    handleSelectVariant,
-    handleRefineVersion,
-    handleCompareVersions,
-    handleExplorePerspective,
-    handleGenerateFinalSynthesis,
-    ideasHistory,
-    activeIdeaId,
-    handleSelectHistoryIdea,
-  }
+    state,
+    actions: {
+      createSession,
+      createIdea,
+      generateVariants,
+      selectVariant,
+      transformVersion,
+      activateVersion,
+      analyzePerspective,
+      compareVersions,
+      generateSynthesis,
+      setLanguageMode,
+      selectVersionFromHistory,
+      clearWorkspace,
+      bootstrapWorkspace,
+    },
+  };
 }

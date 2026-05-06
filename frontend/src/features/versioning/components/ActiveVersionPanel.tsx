@@ -1,120 +1,145 @@
-import { useState } from 'react'
-import type { ActiveIdeaVersion } from '../../../types/idea'
-import { EmptyState } from '../../../components/shared/EmptyState'
+import { useTranslation } from "react-i18next";
+import EmptyState from "../../../components/shared/EmptyState";
+import SectionCard from "../../../components/shared/ui/SectionCard";
+import type { VersionResponse } from "../../../types/idea";
 
-interface ActiveVersionPanelProps {
-  activeVersion: ActiveIdeaVersion | null
+type ActiveVersionPanelProps = {
+  activeVersion: VersionResponse | null;
+  selectedVersion: VersionResponse | null;
+};
+
+function InfoBlock({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="focused-version-info rounded-[1.45rem] p-4">
+      <div className="relative z-[1]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+          {label}
+        </p>
+        <p className="mt-2 break-all text-sm leading-7 text-slate-200">{value}</p>
+      </div>
+    </div>
+  );
 }
 
-export function ActiveVersionPanel({
+export default function ActiveVersionPanel({
   activeVersion,
+  selectedVersion,
 }: ActiveVersionPanelProps) {
-  const [isExpanded, setIsExpanded] = useState(true)
+  const { t } = useTranslation();
+  const versionToDisplay = selectedVersion ?? activeVersion;
+  const isRealActive = versionToDisplay?.id === activeVersion?.id;
 
   return (
-    <section
-      className="
-        sticky top-24 z-20
-        rounded-2xl border border-slate-200
-        bg-zinc-300 backdrop-blur-sm
-        shadow-lg
-      "
-      aria-live="polite"
+    <SectionCard
+      title={t("activeVersion.title")}
+      description={t("activeVersion.description")}
     >
-      <button
-        type="button"
-        onClick={() => setIsExpanded((prev) => !prev)}
-        aria-expanded={isExpanded}
-        className="
-          flex w-full items-center justify-between gap-3
-          px-5 py-4 text-left
-          transition hover:bg-slate-50 rounded-2xl
-        "
-      >
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-slate-900">
-              Active version
-            </h3>
+      {!versionToDisplay ? (
+        <EmptyState
+          title={t("activeVersion.empty.title")}
+          description={t("activeVersion.empty.description")}
+        />
+      ) : (
+        <div className="focused-version-stage grid gap-4">
+          <div className="focused-version-banner rounded-[1.65rem] p-5 md:p-6">
+            <div className="relative z-[1] grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="aero-badge">{t("activeVersion.badges.coreVersion")}</span>
+                  <span className="aero-badge">
+                    {t("activeVersion.badges.versionNumber", {
+                      number: versionToDisplay.version_number,
+                    })}
+                  </span>
+                  <span className="aero-badge">{versionToDisplay.transformation_type}</span>
+                  {isRealActive ? (
+                    <span className="aero-badge aero-badge--success">
+                      {t("activeVersion.badges.realActive")}
+                    </span>
+                  ) : (
+                    <span className="aero-badge">
+                      {t("activeVersion.badges.inspection")}
+                    </span>
+                  )}
+                </div>
 
-            {activeVersion ? (
-              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
-                Live
-              </span>
-            ) : null}
-          </div>
+                <h3 className="mt-4 text-xl font-semibold tracking-[-0.02em] text-slate-50">
+                  {isRealActive
+                    ? t("activeVersion.headers.realActive")
+                    : t("activeVersion.headers.inspection")}
+                </h3>
 
-          <p className="mt-1 text-sm text-slate-500">
-            {activeVersion
-              ? `${activeVersion.title} • Version ${activeVersion.version_number}`
-              : 'No active version yet'}
-          </p>
-        </div>
-
-        <span
-          className={`
-            grid h-9 w-9 place-items-center rounded-full
-            border border-slate-200 bg-white text-slate-700
-            transition-transform duration-200
-            ${isExpanded ? 'rotate-180' : 'rotate-0'}
-          `}
-          aria-hidden="true"
-        >
-          ▾
-        </span>
-      </button>
-
-      {isExpanded ? (
-        <div className="border-t border-slate-100 px-5 py-4">
-          {!activeVersion ? (
-            <EmptyState>
-              No active version yet. Select one variant to create version 1.
-            </EmptyState>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white">
-                  Version {activeVersion.version_number}
-                </span>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                  {activeVersion.transformation_type}
-                </span>
-                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
-                  {activeVersion.status}
-                </span>
-              </div>
-
-              <div className="rounded-xl border border-slate-100 bg-zinc-200 p-4">
-                <h4 className="text-lg font-semibold text-slate-900">
-                  {activeVersion.title}
-                </h4>
-                <p className="mt-3 text-sm leading-6 text-slate-700">
-                  {activeVersion.content}
+                <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-300/84">
+                  {isRealActive
+                    ? t("activeVersion.messages.realActive")
+                    : t("activeVersion.messages.inspection")}
                 </p>
               </div>
 
-              <div className="grid gap-3 text-sm text-slate-600">
-                <p>
-                  <span className="font-medium text-slate-800">Version ID:</span>{' '}
-                  <span className="break-all">{activeVersion.version_id}</span>
+              <div className="rounded-[1.2rem] border border-white/8 bg-slate-950/22 px-4 py-3 text-sm text-slate-300">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  {t("activeVersion.visualModeLabel")}
                 </p>
-                <p>
-                  <span className="font-medium text-slate-800">Source Variant:</span>{' '}
-                  {activeVersion.source_variant_id ?? 'N/A'}
-                </p>
-                <p>
-                  <span className="font-medium text-slate-800">Parent Version:</span>{' '}
-                  {activeVersion.parent_version_id ?? 'None'}
-                </p>
-                <p>
-                  <span className="font-medium text-slate-800">Idea ID:</span>{' '}
-                  <span className="break-all">{activeVersion.idea_id}</span>
+                <p className="mt-2 font-medium text-slate-100">
+                  {isRealActive
+                    ? t("activeVersion.visualModes.activeCore")
+                    : t("activeVersion.visualModes.temporaryInspection")}
                 </p>
               </div>
             </div>
-          )}
+
+            <div className="focused-version-banner__orb focused-version-banner__orb--one" />
+            <div className="focused-version-banner__orb focused-version-banner__orb--two" />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <InfoBlock
+              label={t("activeVersion.info.versionId")}
+              value={versionToDisplay.id}
+            />
+            <InfoBlock
+              label={t("activeVersion.info.appliedTransformation")}
+              value={versionToDisplay.transformation_type}
+            />
+            <InfoBlock
+              label={t("activeVersion.info.versionNumber")}
+              value={t("activeVersion.badges.versionNumber", {
+                number: versionToDisplay.version_number,
+              })}
+            />
+          </div>
+
+          <div className="focused-version-body rounded-[1.5rem] p-5 md:p-6">
+            <div className="relative z-[1]">
+              <div className="mb-3 flex flex-wrap items-center gap-2">
+                <span className="aero-badge">{t("activeVersion.contentBadges.versionContent")}</span>
+                <span className="aero-badge">{t("activeVersion.contentBadges.readableCore")}</span>
+                <span className="aero-badge">
+                  {isRealActive
+                    ? t("activeVersion.contentBadges.currentState")
+                    : t("activeVersion.contentBadges.focusedView")}
+                </span>
+              </div>
+
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                {t("activeVersion.centralContentLabel")}
+              </p>
+
+              <div className="mt-4 rounded-[1.3rem] border border-white/8 bg-slate-950/20 p-4 md:p-5">
+                <p className="whitespace-pre-wrap text-sm leading-8 text-slate-200">
+                  {versionToDisplay.content}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
-      ) : null}
-    </section>
-  )
+      )}
+    </SectionCard>
+  );
 }

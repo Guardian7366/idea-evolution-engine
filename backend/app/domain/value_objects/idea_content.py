@@ -1,9 +1,19 @@
-"""
-Deprecated.
-A menos que haya una razón para mantener esta clase, es más sencillo usar
-title y content como strings directamente en las clases que lo ocupen,
-para no tener que mapear los valores entre python y la base de datos
-cada vez que se cree o actualice una idea, versión o variante.
-"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
 class IdeaContent:
-    ...
+    value: str
+
+    def __post_init__(self) -> None:
+        normalized = self.value.strip()
+
+        if not normalized:
+            raise ValueError("Idea content cannot be empty.")
+
+        if len(normalized) > 2000:
+            raise ValueError("Idea content cannot exceed 2000 characters.")
+
+        object.__setattr__(self, "value", normalized)

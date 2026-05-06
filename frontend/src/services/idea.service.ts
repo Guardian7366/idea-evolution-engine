@@ -1,98 +1,108 @@
-import { apiClient } from './api'
+import { apiClient } from "./api";
 import type {
-  CompareVersionsRequest,
-  CompareVersionsResponse,
-  CreateIdeaRequest,
-  CreateIdeaResponse,
-  CreateSessionResponse,
-  ExplorePerspectiveRequest,
-  ExplorePerspectiveResponse,
-  GenerateFinalSynthesisRequest,
-  GenerateFinalSynthesisResponse,
-  GenerateVariantsRequest,
-  GenerateVariantsResponse,
-  SelectVariantRequest,
-  SelectVariantResponse,
-  TransformVersionRequest,
-  TransformVersionResponse,
-} from '../types/idea'
+  ActivateVersionPayload,
+  AnalyzePerspectivePayload,
+  CompareVersionsPayload,
+  ComparisonResponse,
+  CreateIdeaPayload,
+  CreateSessionPayload,
+  GenerateSynthesisPayload,
+  IdeaResponse,
+  LanguageMode,
+  PerspectiveResponse,
+  SelectVariantPayload,
+  SessionResponse,
+  SynthesisResponse,
+  TransformVersionPayload,
+  VariantListResponse,
+  VersionListResponse,
+  VersionResponse,
+} from "../types/idea";
 
-// Session creation endpoint.
-export async function createSession(): Promise<CreateSessionResponse> {
-  const response = await apiClient.post<CreateSessionResponse>('/sessions')
-  return response.data
+function buildLanguageQuery(language: LanguageMode): string {
+  return `language=${encodeURIComponent(language)}`;
 }
 
-// Idea creation endpoint.
-export async function createIdea(
-  payload: CreateIdeaRequest,
-): Promise<CreateIdeaResponse> {
-  const response = await apiClient.post<CreateIdeaResponse>('/ideas', payload)
-  return response.data
-}
+export const ideaService = {
+  async createSession(payload: CreateSessionPayload): Promise<SessionResponse> {
+    const { data } = await apiClient.post<SessionResponse>("/sessions/", payload);
+    return data;
+  },
 
-// Initial variants generation endpoint.
-export async function generateVariants(
-  payload: GenerateVariantsRequest,
-): Promise<GenerateVariantsResponse> {
-  const response = await apiClient.post<GenerateVariantsResponse>(
-    '/ideas/generate-variants',
-    payload,
-  )
-  return response.data
-}
+  async createIdea(payload: CreateIdeaPayload): Promise<IdeaResponse> {
+    const { data } = await apiClient.post<IdeaResponse>("/ideas/", payload);
+    return data;
+  },
 
-// Variant selection endpoint that creates the first active version.
-export async function selectVariant(
-  payload: SelectVariantRequest,
-): Promise<SelectVariantResponse> {
-  const response = await apiClient.post<SelectVariantResponse>(
-    '/ideas/select-variant',
-    payload,
-  )
-  return response.data
-}
+  async generateVariants(
+    ideaId: string,
+    language: LanguageMode = "auto",
+  ): Promise<VariantListResponse> {
+    const { data } = await apiClient.post<VariantListResponse>(
+      `/ideas/${ideaId}/variants?${buildLanguageQuery(language)}`,
+    );
+    return data;
+  },
 
-// Version transformation endpoint.
-export async function transformVersion(
-  payload: TransformVersionRequest,
-): Promise<TransformVersionResponse> {
-  const response = await apiClient.post<TransformVersionResponse>(
-    '/ideas/transform-version',
-    payload,
-  )
-  return response.data
-}
+  async getSessionById(sessionId: string): Promise<SessionResponse> {
+    const { data } = await apiClient.get<SessionResponse>(`/sessions/${sessionId}`);
+    return data;
+  },
 
-// Analytical comparison between two versions.
-export async function compareVersions(
-  payload: CompareVersionsRequest,
-): Promise<CompareVersionsResponse> {
-  const response = await apiClient.post<CompareVersionsResponse>(
-    '/ideas/compare-versions',
-    payload,
-  )
-  return response.data
-}
+  async getIdeaById(ideaId: string): Promise<IdeaResponse> {
+    const { data } = await apiClient.get<IdeaResponse>(`/ideas/${ideaId}`);
+    return data;
+  },
 
-// Analytical perspective exploration over one version.
-export async function explorePerspective(
-  payload: ExplorePerspectiveRequest,
-): Promise<ExplorePerspectiveResponse> {
-  const response = await apiClient.post<ExplorePerspectiveResponse>(
-    '/ideas/explore-perspective',
-    payload,
-  )
-  return response.data
-}
+  async listVariants(ideaId: string): Promise<VariantListResponse> {
+    const { data } = await apiClient.get<VariantListResponse>(`/ideas/${ideaId}/variants`);
+    return data;
+  },
 
-// Final synthesis generation for the active version.
-export async function generateFinalSynthesis(
-  payload: GenerateFinalSynthesisRequest,
-): Promise<GenerateFinalSynthesisResponse> {
-  const response = await apiClient.post<GenerateFinalSynthesisResponse>(
-    '/ideas/generate-final-synthesis',
-    payload,
-  )
-  return response.data
-}
+  async selectVariant(payload: SelectVariantPayload): Promise<VersionResponse> {
+    const { data } = await apiClient.post<VersionResponse>("/versions/select", payload);
+    return data;
+  },
+
+  async listVersions(ideaId: string): Promise<VersionListResponse> {
+    const { data } = await apiClient.get<VersionListResponse>(`/versions/idea/${ideaId}`);
+    return data;
+  },
+
+  async transformVersion(payload: TransformVersionPayload): Promise<VersionResponse> {
+    const { data } = await apiClient.post<VersionResponse>("/versions/transform", payload);
+    return data;
+  },
+
+  async activateVersion(payload: ActivateVersionPayload): Promise<VersionResponse> {
+    const { data } = await apiClient.post<VersionResponse>("/versions/activate", payload);
+    return data;
+  },
+
+  async analyzePerspective(
+    payload: AnalyzePerspectivePayload,
+  ): Promise<PerspectiveResponse> {
+    const { data } = await apiClient.post<PerspectiveResponse>(
+      "/analysis/perspective",
+      payload,
+    );
+    return data;
+  },
+
+  async generateSynthesis(
+    payload: GenerateSynthesisPayload,
+  ): Promise<SynthesisResponse> {
+    const { data } = await apiClient.post<SynthesisResponse>("/synthesis/", payload);
+    return data;
+  },
+
+  async compareVersions(
+    payload: CompareVersionsPayload,
+  ): Promise<ComparisonResponse> {
+    const { data } = await apiClient.post<ComparisonResponse>(
+      "/analysis/compare",
+      payload,
+    );
+    return data;
+  },
+};

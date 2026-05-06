@@ -1,110 +1,113 @@
-"""
-analysis_service.py — Application service for version comparison and perspective analysis.
+from __future__ import annotations
 
-Owns all AI-powered analytical operations:
-  - compare_versions: structural comparison of two idea versions
-  - explore_perspective: single-lens analysis (feasibility, innovation, user_value, risks)
-
-Receives OllamaProvider and VersionRepository via dependency injection.
-"""
-from sqlite3 import Cursor
-
-from app.application.dto.comparison_dto import (
-    CompareVersionsRequest,
-    CompareVersionsResponse,
-)
-from app.application.dto.perspective_dto import (
-    ExplorePerspectiveRequest,
-    ExplorePerspectiveResponse,
-)
+from app.application.dto.comparison_dto import ComparisonResponse
+from app.application.dto.perspective_dto import PerspectiveResponse
+from app.domain.repositories.analysis_repository import AnalysisRepository
 from app.domain.repositories.version_repository import VersionRepository
-from app.infrastructure.ai.ollama_provider import OllamaProvider
-
+from app.infrastructure.ai.mappers.analysis_mapper import map_analysis_payload_to_entity
+from app.infrastructure.ai.mappers.comparison_mapper import map_comparison_payload_to_entity
+from app.infrastructure.ai.providers.mock_provider import MockAIProvider
+from app.infrastructure.ai.providers.ollama_provider import OllamaProvider
+from app.shared.errors.domain_errors import VersionNotFoundDomainError
+from app.shared.utils.language import resolve_language
+from app.shared.errors.domain_errors import IdeaNotFoundError, VersionNotFoundDomainError
 
 class AnalysisService:
-    """
-    Handles analytical operations over idea versions using the AI provider.
-    """
-
     def __init__(
         self,
+        repository: AnalysisRepository,
         version_repository: VersionRepository,
-        ollama_provider: OllamaProvider,
+        ai_provider: MockAIProvider | OllamaProvider,
     ) -> None:
-        self._version_repo = version_repository
-        self._provider = ollama_provider
+        self.repository = repository
+        self.version_repository = version_repository
+        self.ai_provider = ai_provider
 
-    async def compare_versions(
+    def analyze_perspective(
         self,
-        payload: CompareVersionsRequest,
-        cursor: Cursor,
-    ) -> CompareVersionsResponse:
-        """
-        Compare two idea versions using Ollama and return structured analysis.
+        version_id: str,
+        perspective: str,
+        preferred_language: str | None = "auto",
+    ) -> PerspectiveResponse:
+        version = self.version_repository.get_by_id(version_id)
+        if version is None:
+            raise VersionNotFoundDomainError("Version not found.")
 
-        Fetches both versions from the repository to get their real content,
-        then sends them to the AI provider for comparison.
-        """
-        # IMPORTANTE:
-        # El backend también valida que no se compare una versión consigo misma.
-        # No debemos depender solo del frontend para esta regla.
-        if payload.version_id_a == payload.version_id_b:
-            raise ValueError(
-                "No se puede comparar una versión consigo misma. "
-                "Selecciona dos versiones diferentes."
-            )
-        version_a = await self._version_repo.get_by_id(payload.version_id_a, cursor)
-        if version_a is None or version_a.idea_id != payload.idea_id:
-            raise ValueError(
-                f"La versión '{payload.version_id_a}' no existe para la idea '{payload.idea_id}'."
-            )
-
-        version_b = await self._version_repo.get_by_id(payload.version_id_b, cursor)
-        if version_b is None or version_b.idea_id != payload.idea_id:
-            raise ValueError(
-                f"La versión '{payload.version_id_b}' no existe para la idea '{payload.idea_id}'."
-            )
-
-        comparison = await self._provider.compare_versions(
-            title_a=version_a.title,
-            content_a=version_a.content,
-            title_b=version_b.title,
-            content_b=version_b.content,
+        language = resolve_language(
+            preferred_language=preferred_language,
+            fallback_text=version.content,
         )
 
-        return CompareVersionsResponse(
-            session_id=payload.session_id,
-            idea_id=payload.idea_id,
-            version_id_a=payload.version_id_a,
-            version_id_b=payload.version_id_b,
-            comparison=comparison,
-            message="Versions compared successfully",
+        if isinstance(self.ai_provider, OllamaProvider):
+            payload = self.ai_provider.analyze_perspective(
+                version_id=version_id,
+                perspective=perspective,
+                version_content=version.content,
+                language=language,
+            )
+        else:
+            payload = self.ai_provider.analyze_perspective(
+                version_id=version_id,
+                perspective=perspective,
+                language=language,
+            )
+
+        analysis = map_analysis_payload_to_entity(payload, version_id=version_id)
+        saved = self.repository.save_analysis(analysis)
+
+        return PerspectiveResponse(
+            id=saved.id,
+            version_id=saved.version_id,
+            analysis_type=saved.analysis_type,
+            content=saved.content,
+            created_at=saved.created_at,
         )
 
-    async def explore_perspective(
+    def compare_versions(
         self,
-        payload: ExplorePerspectiveRequest,
-        cursor: Cursor,
-    ) -> ExplorePerspectiveResponse:
-        """
-        Analyze a specific idea version from the requested perspective using Ollama.
-        """
-        version = await self._version_repo.get_by_id(payload.version_id, cursor)
-        if version is None or version.idea_id != payload.idea_id:
-            raise ValueError(
-                f"La versión '{payload.version_id}' no existe para la idea '{payload.idea_id}'."
-            )
+        idea_id: str,
+        left_version_id: str,
+        right_version_id: str,
+        preferred_language: str | None = "auto",
+    ) -> ComparisonResponse:
+        left_version = self.version_repository.get_by_id(left_version_id)
+        if left_version is None:
+            raise VersionNotFoundDomainError("Left version not found.")
 
-        analysis = await self._provider.explore_perspective(
-            perspective_type=payload.perspective_type,
-            title=version.title,
-            content=version.content,
+        right_version = self.version_repository.get_by_id(right_version_id)
+        if right_version is None:
+            raise VersionNotFoundDomainError("Right version not found.")
+
+        if left_version.idea_id != idea_id or right_version.idea_id != idea_id:
+            raise IdeaNotFoundError("Versions do not belong to the provided idea.")
+
+        if left_version.id == right_version.id:
+            raise VersionNotFoundDomainError("Cannot compare a version with itself.")
+
+        language = resolve_language(
+            preferred_language=preferred_language,
+            fallback_text=f"{left_version.content}\n{right_version.content}",
         )
 
-        return ExplorePerspectiveResponse(
-            session_id=payload.session_id,
-            idea_id=payload.idea_id,
-            version_id=payload.version_id,
-            analysis=analysis,
-            message="Perspective explored successfully",
+        payload = self.ai_provider.compare_versions(
+            left_version_content=left_version.content,
+            right_version_content=right_version.content,
+            language=language,
+        )
+
+        comparison = map_comparison_payload_to_entity(
+            payload,
+            idea_id=idea_id,
+            left_version_id=left_version_id,
+            right_version_id=right_version_id,
+        )
+        saved = self.repository.save_comparison(comparison)
+
+        return ComparisonResponse(
+            id=saved.id,
+            idea_id=saved.idea_id,
+            left_version_id=saved.left_version_id,
+            right_version_id=saved.right_version_id,
+            comparison_text=saved.comparison_text,
+            created_at=saved.created_at,
         )

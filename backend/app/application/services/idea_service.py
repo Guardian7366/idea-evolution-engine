@@ -1,269 +1,111 @@
-"""
-idea_service.py — Application service that orchestrates the full idea evolution flow.
+from __future__ import annotations
 
-AI operations are delegated to specialized services:
-  - generate_variants  → OllamaProvider (called directly here)
-  - compare_versions   → AnalysisService
-  - explore_perspective → AnalysisService
-  - generate_final_synthesis → SynthesisService
+from datetime import datetime, timezone
+from uuid import uuid4
 
-transform_version orchestration stays here; the AI call inside it lives in VersionService.
-"""
-from sqlite3 import Cursor
-
-from app.application.dto.comparison_dto import (
-    CompareVersionsRequest,
-    CompareVersionsResponse,
-)
-from app.application.dto.idea_dto import (
-    IdeaCreateRequest,
-    IdeaCreateResponse,
-)
-from app.application.dto.perspective_dto import (
-    ExplorePerspectiveRequest,
-    ExplorePerspectiveResponse,
-)
-from app.application.dto.selection_dto import (
-    SelectVariantRequest,
-    SelectVariantResponse,
-)
-from app.application.dto.synthesis_dto import (
-    GenerateFinalSynthesisRequest,
-    GenerateFinalSynthesisResponse,
-)
-from app.application.dto.transformation_dto import (
-    TransformVersionRequest,
-    TransformVersionResponse,
-)
-from app.application.dto.variant_dto import (
-    GenerateVariantsRequest,
-    GenerateVariantsResponse,
-)
-from app.application.dto.version_dto import ActiveIdeaVersion
-from app.application.services.session_service import SessionService
-from app.application.services.version_service import VersionService
+from app.application.dto.idea_dto import IdeaCreateRequest, IdeaResponse
+from app.application.dto.variant_dto import VariantListResponse, VariantResponse
 from app.domain.entities.idea import Idea
 from app.domain.entities.idea_variant import IdeaVariant
 from app.domain.repositories.idea_repository import IdeaRepository
-from app.domain.value_objects.transformation_type import TransformationType
-from app.infrastructure.ai.ollama_provider import OllamaProvider
-from app.application.services.analysis_service import AnalysisService
-from app.application.services.synthesis_service import SynthesisService
-
-
-def _build_title_from_prompt(prompt: str, max_length: int = 60) -> str:
-    stripped = prompt.strip()
-    if len(stripped) <= max_length:
-        return stripped
-    truncated = stripped[:max_length].rsplit(' ', 1)[0]
-    return f"{truncated}..."
+from app.domain.repositories.session_repository import SessionRepository
+from app.domain.value_objects.idea_content import IdeaContent
+from app.infrastructure.ai.mappers.variant_mapper import map_variant_payloads_to_entities
+from app.infrastructure.ai.providers.mock_provider import MockAIProvider
+from app.infrastructure.ai.providers.ollama_provider import OllamaProvider
+from app.shared.errors.domain_errors import IdeaNotFoundError, SessionNotFoundError
+from app.shared.utils.language import resolve_language
 
 
 class IdeaService:
-    """
-    Application service that orchestrates the complete idea evolution flow.
-    """
-
     def __init__(
         self,
         idea_repository: IdeaRepository,
-        session_service: SessionService,
-        version_service: VersionService,
-        ollama_provider: OllamaProvider,
-        analysis_service: AnalysisService,
-        synthesis_service: SynthesisService,
+        session_repository: SessionRepository,
+        ai_provider: MockAIProvider | OllamaProvider,
     ) -> None:
-        self._idea_repo = idea_repository
-        self._session_service = session_service
-        self._version_service = version_service
-        self._provider = ollama_provider
-        self._analysis_service = analysis_service
-        self._synthesis_service = synthesis_service
+        self.idea_repository = idea_repository
+        self.session_repository = session_repository
+        self.ai_provider = ai_provider
 
-    # ── 1. CREATE IDEA ────────────────────────────────────────────────────────
+    def create_idea(self, data: IdeaCreateRequest) -> IdeaResponse:
+        session = self.session_repository.get_by_id(data.session_id)
+        if session is None:
+            raise SessionNotFoundError("Session not found.")
 
-    async def create_idea(self, payload: IdeaCreateRequest, cursor: Cursor) -> IdeaCreateResponse:
-        await self._session_service.assert_session_is_active(payload.session_id, cursor)
-
-        title = _build_title_from_prompt(payload.initial_prompt)
-
-        idea = Idea.create(
-            session_id=payload.session_id,
-            title=title,
-            content=payload.initial_prompt,
+        now = datetime.now(timezone.utc)
+        idea = Idea(
+            id=f"idea_{uuid4().hex}",
+            session_id=data.session_id,
+            content=IdeaContent(data.content),
+            title=data.title,
+            created_at=now,
+            updated_at=now,
         )
-        persisted_idea = await self._idea_repo.save(idea, cursor)
+        saved = self.idea_repository.save_idea(idea)
+        return self._to_idea_response(saved)
 
-        await self._session_service.register_idea_added(
-            payload.session_id, persisted_idea.id, cursor
-        )
-
-        await self._version_service.create_initial_version(
-            idea_id=persisted_idea.id,
-            title=title,
-            content=payload.initial_prompt,
-            cursor=cursor,
-        )
-
-        return IdeaCreateResponse(
-            idea_id=persisted_idea.id,
-            session_id=payload.session_id,
-            initial_prompt=payload.initial_prompt,
-            message="Idea created successfully",
-        )
-
-    # ── 2. GENERATE VARIANTS (AI) ─────────────────────────────────────────────
-
-    async def generate_variants(
-        self,
-        payload: GenerateVariantsRequest,
-        cursor: Cursor,
-    ) -> GenerateVariantsResponse:
-        """Generate variants using Ollama (Qwen2.5)."""
-        idea = await self._idea_repo.get_by_id(payload.idea_id, cursor)
+    def get_idea_by_id(self, idea_id: str) -> IdeaResponse | None:
+        idea = self.idea_repository.get_idea_by_id(idea_id)
         if idea is None:
-            raise ValueError(
-                f"No se pueden generar variantes: la idea '{payload.idea_id}' no existe."
-            )
+            return None
+        return self._to_idea_response(idea)
 
-        variants = await self._provider.generate_variants(payload.initial_prompt)
-
-        return GenerateVariantsResponse(
-            session_id=payload.session_id,
-            idea_id=payload.idea_id,
-            variants=variants,
-            message="Variants generated successfully",
-        )
-
-    # ── 3. SELECT VARIANT ─────────────────────────────────────────────────────
-
-    async def select_variant(
+    def generate_variants(
         self,
-        payload: SelectVariantRequest,
-        cursor: Cursor,
-    ) -> SelectVariantResponse:
-        """
-        The user picks one variant. Creates the first real active version.
-        variant_id is the UUID returned by generate_variants (from the AI).
-        """
-        idea = await self._idea_repo.get_by_id(payload.idea_id, cursor)
+        idea_id: str,
+        preferred_language: str | None = "auto",
+    ) -> VariantListResponse:
+        idea = self.idea_repository.get_idea_by_id(idea_id)
         if idea is None:
-            raise ValueError(f"La idea '{payload.idea_id}' no existe.")
+            raise IdeaNotFoundError("Idea not found.")
 
-        latest_version = await self._version_service.get_latest_version(payload.idea_id, cursor)
-        if latest_version is None:
-            raise ValueError(
-                f"La idea '{payload.idea_id}' no tiene versiones. "
-                "Verifica que create_idea() se ejecutó correctamente."
+        existing_variants = self.idea_repository.list_variants_by_idea_id(idea_id)
+        if existing_variants:
+            return VariantListResponse(
+                items=[self._to_variant_response(v) for v in existing_variants]
             )
 
-        variant = IdeaVariant.create(
-            version_id=latest_version.id,
-            title=payload.variant_title,
-            content=payload.variant_content,
-            transformation_type=TransformationType.SELECTION,
-            variant_id=payload.variant_id,  # ✅ usamos el ID real
+        language = resolve_language(
+            preferred_language=preferred_language,
+            fallback_text=f"{idea.title or ''}\n{idea.content.value}",
         )
 
-        # IMPORTANTE:
-        # Se utiliza el variant_id generado por la IA/frontend
-        # para mantener consistencia en todo el flujo.
-        await self._version_service.mark_analyzed(payload.idea_id, latest_version.id, cursor)
-        await self._version_service.add_variant_to_version(payload.idea_id, latest_version.id, variant, cursor)
-        updated_version = await self._version_service.mark_selected(payload.idea_id, latest_version.id, cursor)
+        payloads = self.ai_provider.generate_variants(
+            idea.content.value,
+            language=language,
+        )
+        variants = map_variant_payloads_to_entities(payloads, idea_id=idea_id)
 
-        active_version = ActiveIdeaVersion(
-            version_id=updated_version.id,
-            idea_id=payload.idea_id,
-            session_id=payload.session_id,
-            title=payload.variant_title,
-            content=payload.variant_content,
-            status="active",
-            version_number=updated_version.version_number,
-            parent_version_id=updated_version.parent_version_id,
-            source_variant_id=variant.id,
-            transformation_type=TransformationType.SELECTION.value,
+        saved = self.idea_repository.save_variants(variants)
+        return VariantListResponse(items=[self._to_variant_response(v) for v in saved])
+
+    def list_variants_by_idea_id(self, idea_id: str) -> VariantListResponse:
+        idea = self.idea_repository.get_idea_by_id(idea_id)
+        if idea is None:
+            raise IdeaNotFoundError("Idea not found.")
+
+        variants = self.idea_repository.list_variants_by_idea_id(idea_id)
+        return VariantListResponse(items=[self._to_variant_response(v) for v in variants])
+
+    def _to_idea_response(self, idea: Idea) -> IdeaResponse:
+        return IdeaResponse(
+            id=idea.id,
+            session_id=idea.session_id,
+            content=idea.content.value,
+            title=idea.title,
+            created_at=idea.created_at,
+            updated_at=idea.updated_at,
         )
 
-        return SelectVariantResponse(
-            session_id=payload.session_id,
-            idea_id=payload.idea_id,
-            selected_variant_id=payload.variant_id,
-            active_version=active_version,
-            message="Variant selected and active version created successfully",
+    def _to_variant_response(self, variant: IdeaVariant) -> VariantResponse:
+        return VariantResponse(
+            id=variant.id,
+            idea_id=variant.idea_id,
+            title=variant.title,
+            description=variant.description,
+            order_index=variant.order_index,
+            is_selected=variant.is_selected,
+            selected_at=variant.selected_at,
+            created_at=variant.created_at,
         )
-
-    # ── 4. TRANSFORM VERSION (AI via VersionService) ──────────────────────────
-
-    async def transform_version(
-        self,
-        payload: TransformVersionRequest,
-        cursor: Cursor,
-    ) -> TransformVersionResponse:
-        """
-        Orchestrates an AI-powered transformation of the current active version.
-        The actual AI call and new version creation live in VersionService.
-        """
-        try:
-            transformation = TransformationType(payload.transformation_type)
-        except ValueError:
-            raise ValueError(
-                f"Tipo de transformación desconocido: '{payload.transformation_type}'. "
-                f"Los valores válidos son: {[t.value for t in TransformationType]}."
-            )
-
-        new_version = await self._version_service.ai_transform(
-            idea_id=payload.idea_id,
-            parent_version_id=payload.version_id,
-            instruction=payload.instruction,
-            transformation_type=transformation,
-            cursor=cursor,
-        )
-
-        new_active_version = ActiveIdeaVersion(
-            version_id=new_version.id,
-            idea_id=payload.idea_id,
-            session_id=payload.session_id,
-            title=new_version.title,
-            content=new_version.content,
-            status="active",
-            version_number=new_version.version_number,
-            parent_version_id=new_version.parent_version_id,
-            source_variant_id=None,
-            transformation_type=transformation.value,
-        )
-
-        return TransformVersionResponse(
-            session_id=payload.session_id,
-            idea_id=payload.idea_id,
-            previous_version_id=payload.version_id,
-            new_active_version=new_active_version,
-            message="Version transformed successfully",
-        )
-
-    # ── 5. COMPARE VERSIONS (AI via AnalysisService) ──────────────────────────
-
-    async def compare_versions(
-        self,
-        payload: CompareVersionsRequest,
-        cursor: Cursor,
-    ) -> CompareVersionsResponse:
-        return await self._analysis_service.compare_versions(payload, cursor)
-
-    # ── 6. EXPLORE PERSPECTIVE (AI via AnalysisService) ───────────────────────
-
-    async def explore_perspective(
-        self,
-        payload: ExplorePerspectiveRequest,
-        cursor: Cursor,
-    ) -> ExplorePerspectiveResponse:
-        return await self._analysis_service.explore_perspective(payload, cursor)
-
-    # ── 7. GENERATE FINAL SYNTHESIS (AI via SynthesisService) ─────────────────
-
-    async def generate_final_synthesis(
-        self,
-        payload: GenerateFinalSynthesisRequest,
-        cursor: Cursor,
-    ) -> GenerateFinalSynthesisResponse:
-        return await self._synthesis_service.generate_final_synthesis(payload, cursor)

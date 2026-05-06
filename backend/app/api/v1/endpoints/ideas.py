@@ -1,146 +1,49 @@
-"""
-ideas.py — Endpoints de la API para el flujo de ideas.
+from __future__ import annotations
 
-Cambios respecto al mock original:
-- Todos los métodos ahora son async.
-- IdeaService ya no se instancia directamente aquí. Llega por inyección
-  de dependencias con Depends(get_idea_service), igual que sessions.py.
-- Se agregó manejo de errores: los ValueError que lanzan los servicios
-  se convierten en respuestas HTTP apropiadas (404, 400, 409).
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-Lo que NO cambia:
-- Las rutas (URLs) son exactamente las mismas.
-- Los contratos de entrada y salida (DTOs) son exactamente los mismos.
-- El frontend no nota ninguna diferencia en la interfaz.
-"""
-from sqlite3 import Cursor
-from fastapi import APIRouter, Depends, HTTPException
-
-from app.application.dto.comparison_dto import (
-    CompareVersionsRequest,
-    CompareVersionsResponse,
-)
-from app.application.dto.idea_dto import (
-    IdeaCreateRequest,
-    IdeaCreateResponse,
-)
-from app.application.dto.perspective_dto import (
-    ExplorePerspectiveRequest,
-    ExplorePerspectiveResponse,
-)
-from app.application.dto.selection_dto import (
-    SelectVariantRequest,
-    SelectVariantResponse,
-)
-from app.application.dto.synthesis_dto import (
-    GenerateFinalSynthesisRequest,
-    GenerateFinalSynthesisResponse,
-)
-from app.application.dto.transformation_dto import (
-    TransformVersionRequest,
-    TransformVersionResponse,
-)
-from app.application.dto.variant_dto import (
-    GenerateVariantsRequest,
-    GenerateVariantsResponse,
-)
+from app.api.deps import get_idea_service
+from app.application.dto.idea_dto import IdeaCreateRequest, IdeaResponse
+from app.application.dto.variant_dto import VariantListResponse
 from app.application.services.idea_service import IdeaService
-from app.api.deps import get_idea_service, get_db_cursor
 
 router = APIRouter()
 
 
-@router.post("", response_model=IdeaCreateResponse)
-async def create_idea(
+@router.post("/", response_model=IdeaResponse)
+def create_idea(
     payload: IdeaCreateRequest,
     service: IdeaService = Depends(get_idea_service),
-    cursor: Cursor = Depends(get_db_cursor),
-) -> IdeaCreateResponse:
-    """
-    Crea una nueva idea dentro de una sesión.
-    También crea automáticamente la versión inicial (v1) de esa idea.
-    """
-    try:
-        return await service.create_idea(payload, cursor)
-    except ValueError as e:
-        # Si la sesión no existe → 404. Si no está activa → 409.
-        # Por ahora usamos 400 genérico hasta que se implementen errores tipados.
-        raise HTTPException(status_code=400, detail=str(e))
+) -> IdeaResponse:
+    return service.create_idea(payload)
 
 
-@router.post("/generate-variants", response_model=GenerateVariantsResponse)
-async def generate_variants(
-    payload: GenerateVariantsRequest,
+@router.get("/{idea_id}", response_model=IdeaResponse)
+def get_idea(
+    idea_id: str,
     service: IdeaService = Depends(get_idea_service),
-    cursor: Cursor = Depends(get_db_cursor),
-) -> GenerateVariantsResponse:
-    """Genera el conjunto inicial de variantes para una idea."""
-    try:
-        return await service.generate_variants(payload, cursor)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+) -> IdeaResponse:
+    idea = service.get_idea_by_id(idea_id)
+    if idea is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Idea not found.",
+        )
+    return idea
 
 
-@router.post("/select-variant", response_model=SelectVariantResponse)
-async def select_variant(
-    payload: SelectVariantRequest,
+@router.post("/{idea_id}/variants", response_model=VariantListResponse)
+def generate_variants(
+    idea_id: str,
+    language: str = Query(default="auto"),
     service: IdeaService = Depends(get_idea_service),
-    cursor: Cursor = Depends(get_db_cursor),
-) -> SelectVariantResponse:
-    """El usuario elige una variante y se crea la primera versión activa real."""
-    try:
-        return await service.select_variant(payload, cursor)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+) -> VariantListResponse:
+    return service.generate_variants(idea_id, preferred_language=language)
 
 
-@router.post("/transform-version", response_model=TransformVersionResponse)
-async def transform_version(
-    payload: TransformVersionRequest,
+@router.get("/{idea_id}/variants", response_model=VariantListResponse)
+def list_variants(
+    idea_id: str,
     service: IdeaService = Depends(get_idea_service),
-    cursor: Cursor = Depends(get_db_cursor),
-) -> TransformVersionResponse:
-    """Crea una nueva versión a partir de una transformación sobre la versión actual."""
-    try:
-        return await service.transform_version(payload, cursor)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/compare-versions", response_model=CompareVersionsResponse)
-async def compare_versions(
-    payload: CompareVersionsRequest,
-    service: IdeaService = Depends(get_idea_service),
-    cursor: Cursor = Depends(get_db_cursor),
-) -> CompareVersionsResponse:
-    """Compara dos versiones de la misma idea."""
-    try:
-        return await service.compare_versions(payload, cursor)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/explore-perspective", response_model=ExplorePerspectiveResponse)
-async def explore_perspective(
-    payload: ExplorePerspectiveRequest,
-    service: IdeaService = Depends(get_idea_service),
-    cursor: Cursor = Depends(get_db_cursor),
-) -> ExplorePerspectiveResponse:
-    """Analiza la idea desde un ángulo específico (factibilidad, riesgos, etc)."""
-    try:
-        return await service.explore_perspective(payload, cursor)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.post("/generate-final-synthesis", response_model=GenerateFinalSynthesisResponse)
-async def generate_final_synthesis(
-    payload: GenerateFinalSynthesisRequest,
-    service: IdeaService = Depends(get_idea_service),
-    cursor: Cursor = Depends(get_db_cursor),
-) -> GenerateFinalSynthesisResponse:
-    """Genera la síntesis final de toda la evolución de la idea."""
-    try:
-        return await service.generate_final_synthesis(payload, cursor)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+) -> VariantListResponse:
+    return service.list_variants_by_idea_id(idea_id)

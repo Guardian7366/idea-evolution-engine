@@ -1,64 +1,54 @@
-from sqlite3 import Cursor
-from typing import List, Optional
+from __future__ import annotations
+
+from datetime import datetime
+from sqlalchemy.orm import Session as DBSession
 
 from app.domain.entities.session import Session
 from app.domain.repositories.session_repository import SessionRepository
 from app.domain.value_objects.session_status import SessionStatus
+from app.infrastructure.persistence.models.session_model import SessionModel
 
 
-class SessionRepository(SessionRepository):
-    async def save(self, session: Session, cursor: Cursor) -> Session:
-        """Guarda o actualiza una sesión."""
-        cursor.execute(
-            "INSERT OR REPLACE INTO sessions (id, title, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-            (session.id, session.title, session.status.value, session.created_at.isoformat(), session.updated_at.isoformat())
+class SqliteSessionRepository(SessionRepository):
+    def __init__(self, db: DBSession) -> None:
+        self.db = db
+
+    def save(self, session: Session) -> Session:
+        model = SessionModel(
+            id=session.id,
+            title=session.title,
+            status=session.status.value,
+            created_at=session.created_at.isoformat(),
+            updated_at=session.updated_at.isoformat(),
+            closed_at=session.closed_at.isoformat() if session.closed_at else None,
         )
-        return session
+        self.db.add(model)
+        self.db.commit()
+        self.db.refresh(model)
 
-    async def get_by_id(self, session_id: str, cursor: Cursor) -> Optional[Session]:
-        """Retorna la sesión con ese ID o None si no existe."""
-        cursor.execute("SELECT id, title, status, created_at, updated_at FROM sessions WHERE id = ?", (session_id,))
-        row = cursor.fetchone()
-        if row:
-            return Session(
-                id=row[0],
-                title=row[1],
-                status=SessionStatus(row[2]),
-                created_at=row[3],
-                updated_at=row[4]
-            )
-        return None
+        return Session(
+            id=model.id,
+            title=model.title,
+            status=SessionStatus(model.status),
+            created_at=session.created_at,
+            updated_at=session.updated_at,
+            closed_at=session.closed_at,
+        )
 
-    async def get_all(
-        self,
-        status: Optional[SessionStatus] = None,
-        limit: int = 50,
-        offset: int = 0,
-        cursor: Optional[Cursor] = None,
-    ) -> List[Session]:
-        """Retorna todas las sesiones paginadas, ordenadas por created_at descendente."""
-        if status:
-            cursor.execute("SELECT id, title, status, created_at, updated_at FROM sessions WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?", (status.value, limit, offset))
-        else:
-            cursor.execute("SELECT id, title, status, created_at, updated_at FROM sessions ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
-        rows = cursor.fetchall()
-        return [
-            Session(
-                id=row[0],
-                title=row[1],
-                status=SessionStatus(row[2]),
-                created_at=row[3],
-                updated_at=row[4]
-            )
-            for row in rows
-        ]
+    def get_by_id(self, session_id: str) -> Session | None:
+        model = (
+            self.db.query(SessionModel)
+            .filter(SessionModel.id == session_id)
+            .first()
+        )
+        if model is None:
+            return None
 
-    async def delete(self, session_id: str, cursor: Cursor) -> bool:
-        """Elimina una sesión del store. Retorna True si se eliminó, False si no existía."""
-        cursor.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
-        return cursor.rowcount > 0
-
-    async def exists(self, session_id: str, cursor: Cursor) -> bool:
-        """Verifica si una sesión existe sin cargarla completa."""
-        cursor.execute("SELECT 1 FROM sessions WHERE id = ?", (session_id,))
-        return cursor.fetchone() is not None
+        return Session(
+            id=model.id,
+            title=model.title,
+            status=SessionStatus(model.status),
+            created_at=datetime.fromisoformat(model.created_at),
+            updated_at=datetime.fromisoformat(model.updated_at),
+            closed_at=datetime.fromisoformat(model.closed_at) if model.closed_at else None,
+        )

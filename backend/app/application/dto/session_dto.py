@@ -1,8 +1,18 @@
+from __future__ import annotations
+
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
-class SessionCreateResponse(BaseModel):
-    """Response returned after creating a new session."""
+class SessionCreateRequest(BaseModel):
+    title: str | None = Field(default=None, max_length=120)
 
-    session_id: str = Field(..., description="Unique session identifier")
-    message: str = Field(..., description="Operation result message")
+
+class SessionResponse(BaseModel):
+    id: str
+    title: str | None
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    closed_at: datetime | None = None

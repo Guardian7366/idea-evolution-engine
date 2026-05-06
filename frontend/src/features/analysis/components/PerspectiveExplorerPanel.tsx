@@ -1,146 +1,285 @@
-import type {
-  PerspectiveAnalysisResult,
-  PerspectiveType,
-} from '../../../types/idea'
+import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import Button from "../../../components/shared/ui/Button";
+import EmptyState from "../../../components/shared/EmptyState";
+import SectionCard from "../../../components/shared/ui/SectionCard";
+import type { PerspectiveResponse, VersionResponse } from "../../../types/idea";
 
-import { Button } from '../../../components/shared/ui/Button'
-import { EmptyState } from '../../../components/shared/EmptyState'
-import { Spinner } from '../../../components/shared/ui/Spinner'
+type PerspectiveExplorerPanelProps = {
+  activeVersion: VersionResponse | null;
+  latestAnalysis: PerspectiveResponse | null;
+  isLoading: boolean;
+  onAnalyze: (perspective: string) => Promise<void>;
+};
 
-interface PerspectiveExplorerPanelProps {
-  hasActiveVersion: boolean
-  selectedPerspective: PerspectiveType
-  perspectiveResult: PerspectiveAnalysisResult | null
-  isExploring: boolean
-  onPerspectiveChange: (value: PerspectiveType) => void
-  onExplore: () => void
+const ANALYSIS_SUCCESS_OVERLAY_MS = 1050;
+
+function getPerspectiveOptions(t: (key: string) => string) {
+  return [
+    { value: "business_potential", label: t("perspectiveExplorer.options.businessPotential") },
+    { value: "user_value", label: t("perspectiveExplorer.options.userValue") },
+    { value: "innovation", label: t("perspectiveExplorer.options.innovation") },
+    { value: "feasibility", label: t("perspectiveExplorer.options.feasibility") },
+  ];
 }
 
-const perspectiveOptions: Array<{
-  value: PerspectiveType
-  label: string
-}> = [
-  { value: 'feasibility', label: 'Feasibility' },
-  { value: 'innovation', label: 'Innovation' },
-  { value: 'user_value', label: 'User Value' },
-  { value: 'risks', label: 'Risks' },
-]
+function getPerspectiveDescription(
+  value: string,
+  t: (key: string) => string,
+): string {
+  if (value === "business_potential") {
+    return t("perspectiveExplorer.descriptions.businessPotential");
+  }
 
-export function PerspectiveExplorerPanel({
-  hasActiveVersion,
-  selectedPerspective,
-  perspectiveResult,
-  isExploring,
-  onPerspectiveChange,
-  onExplore,
+  if (value === "user_value") {
+    return t("perspectiveExplorer.descriptions.userValue");
+  }
+
+  if (value === "innovation") {
+    return t("perspectiveExplorer.descriptions.innovation");
+  }
+
+  if (value === "feasibility") {
+    return t("perspectiveExplorer.descriptions.feasibility");
+  }
+
+  return t("perspectiveExplorer.descriptions.default");
+}
+
+function AnalysisSuccessOverlay({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div className="analysis-success-overlay analysis-success-overlay--visible" aria-hidden="true">
+      <div className="analysis-success-overlay__veil" />
+      <div className="analysis-success-overlay__lens analysis-success-overlay__lens--one" />
+      <div className="analysis-success-overlay__lens analysis-success-overlay__lens--two" />
+      <div className="analysis-success-overlay__scan" />
+
+      <div className="analysis-success-overlay__core">
+        <div className="analysis-success-overlay__logo-shell">
+          <img src="/favicon.png" alt="" className="analysis-success-overlay__logo" />
+        </div>
+
+        <div className="analysis-success-overlay__spark" />
+
+        <div className="analysis-success-overlay__text-stack">
+          <p className="analysis-success-overlay__title">{title}</p>
+          <p className="analysis-success-overlay__subtitle">{subtitle}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function PerspectiveExplorerPanel({
+  activeVersion,
+  latestAnalysis,
+  isLoading,
+  onAnalyze,
 }: PerspectiveExplorerPanelProps) {
-  const isDisabled = isExploring
+  const { t } = useTranslation();
+  const [selectedPerspective, setSelectedPerspective] = useState("business_potential");
+  const [isPerspectiveCelebrating, setIsPerspectiveCelebrating] = useState(false);
+  const perspectiveOptions = getPerspectiveOptions(t);
+
+  const perspectiveOverlayTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (perspectiveOverlayTimeoutRef.current !== null) {
+        window.clearTimeout(perspectiveOverlayTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const showPerspectiveSuccessOverlay = () => {
+    if (perspectiveOverlayTimeoutRef.current !== null) {
+      window.clearTimeout(perspectiveOverlayTimeoutRef.current);
+      perspectiveOverlayTimeoutRef.current = null;
+    }
+
+    setIsPerspectiveCelebrating(true);
+
+    perspectiveOverlayTimeoutRef.current = window.setTimeout(() => {
+      setIsPerspectiveCelebrating(false);
+      perspectiveOverlayTimeoutRef.current = null;
+    }, ANALYSIS_SUCCESS_OVERLAY_MS);
+  };
+
+  const handleAnalyzeClick = async () => {
+    await onAnalyze(selectedPerspective);
+    showPerspectiveSuccessOverlay();
+  };
 
   return (
-    <section className="mx-auto w-full max-w-5xl rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur-sm">
-      <div className="mb-4 space-y-2">
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-            Step 4
-          </span>
-          <h3 className="text-2xl font-semibold text-slate-900">
-            Explore perspective
-          </h3>
-        </div>
-
-        <p className="max-w-2xl text-sm leading-6 text-slate-600">
-          Review the active version from one specific angle to uncover strengths,
-          risks, or opportunities that may not be obvious at first glance.
-        </p>
-      </div>
-
-      {!hasActiveVersion ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6">
-          <EmptyState>
-            You need an active version before exploring perspectives.
-          </EmptyState>
-        </div>
+    <SectionCard
+      title={t("perspectiveExplorer.title")}
+      description={t("perspectiveExplorer.description")}
+    >
+      {!activeVersion ? (
+        <EmptyState
+          title={t("perspectiveExplorer.empty.title")}
+          description={t("perspectiveExplorer.empty.description")}
+        />
       ) : (
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <label
-              htmlFor="perspective-select"
-              className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500"
-            >
-              Perspective type
-            </label>
+        <div className="analysis-perspective-stage relative grid gap-5">
 
-            <select
-              id="perspective-select"
-              value={selectedPerspective}
-              onChange={(event) =>
-                onPerspectiveChange(event.target.value as PerspectiveType)
-              }
-              className="
-                mt-3 w-full rounded-xl border border-slate-300 bg-white
-                px-4 py-3 text-sm text-slate-800 outline-none
-                transition focus:border-slate-500
-              "
-            >
-              {perspectiveOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+          <div className="analysis-perspective-stage__halo analysis-perspective-stage__halo--one" />
+          <div className="analysis-perspective-stage__halo analysis-perspective-stage__halo--two" />
+          <div className="analysis-perspective-stage__grid" />
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-slate-500">
-                Choose a lens and generate one focused review at a time.
-              </p>
+          <div className="relative z-[1] rounded-[1.45rem] border border-white/8 bg-slate-950/20 p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="aero-badge">{t("perspectiveExplorer.badges.conceptLens")}</span>
+              <span className="aero-badge">{t("perspectiveExplorer.badges.focusedReading")}</span>
+              <span className="aero-badge">
+                {t("perspectiveExplorer.badges.version", {
+                  number: activeVersion.version_number,
+                })}
+              </span>
+            </div>
 
-              <Button
-                type="button"
-                onClick={onExplore}
-                disabled={isDisabled}
-                loading={isExploring}
-                className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5"
-              >
-                <span className="inline-flex items-center gap-2">
-                  {isExploring && <Spinner size="sm" />}
-                  {isExploring ? 'Exploring...' : 'Explore perspective'}
-                </span>
-              </Button>
+            <p className="mt-3 text-sm leading-7 text-slate-300/84">
+              {t("perspectiveExplorer.intro")}
+            </p>
+          </div>
+
+          <div className="analysis-perspective-stage__controls relative z-[1] rounded-[1.6rem] border border-white/8 bg-slate-950/20 p-5 md:p-6">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.04fr)_minmax(280px,0.96fr)] xl:items-start">
+              <div>
+                <label className="aero-label mb-2 block">
+                  {t("perspectiveExplorer.perspectiveLabel")}
+                </label>
+
+                <select
+                  value={selectedPerspective}
+                  onChange={(e) => setSelectedPerspective(e.target.value)}
+                  disabled={isLoading}
+                  className="aero-select px-4 py-3 text-sm"
+                >
+                  {perspectiveOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+
+                <p className="mt-3 text-sm leading-7 text-slate-300/84">
+                  {getPerspectiveDescription(selectedPerspective, t)}
+                </p>
+
+                <div className="mt-5">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={isLoading}
+                    onClick={handleAnalyzeClick}
+                  >
+                    {t("perspectiveExplorer.analyzeAction")}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-[1.25rem] border border-white/8 bg-slate-950/22 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  {t("perspectiveExplorer.expectedReadingTitle")}
+                </p>
+
+                <p className="mt-3 text-sm leading-7 text-slate-300/82">
+                  {t("perspectiveExplorer.expectedReadingDescription")}
+                </p>
+
+                <div className="mt-4 grid gap-3">
+                  <div className="rounded-[1rem] border border-white/8 bg-white/[0.03] p-3">
+                    <p className="text-sm font-semibold text-slate-100">
+                      {t("perspectiveExplorer.cards.business.title")}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-slate-300/80">
+                      {t("perspectiveExplorer.cards.business.description")}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[1rem] border border-white/8 bg-white/[0.03] p-3">
+                    <p className="text-sm font-semibold text-slate-100">
+                      {t("perspectiveExplorer.cards.user.title")}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-slate-300/80">
+                      {t("perspectiveExplorer.cards.user.description")}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[1rem] border border-white/8 bg-white/[0.03] p-3">
+                    <p className="text-sm font-semibold text-slate-100">
+                      {t("perspectiveExplorer.cards.execution.title")}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-slate-300/80">
+                      {t("perspectiveExplorer.cards.execution.description")}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {perspectiveResult ? (
-            <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="rounded-xl bg-slate-50 p-4">
-                <h4 className="text-base font-semibold text-slate-900">Summary</h4>
-                <p className="mt-2 text-sm leading-6 text-slate-700">
-                  {perspectiveResult.summary}
-                </p>
+          <div className="analysis-result-panel relative z-[1] overflow-hidden rounded-[1.7rem] p-5 md:p-6">
+            {isPerspectiveCelebrating ? (
+              <AnalysisSuccessOverlay
+                title={t("perspectiveExplorer.result.badges.generated")}
+                subtitle={t("perspectiveExplorer.result.title")}
+              />
+            ) : null}
+
+            <div className="relative z-[1]">
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="aero-badge">
+                  {t("perspectiveExplorer.result.badges.perspectiveReading")}
+                </span>
+                {latestAnalysis ? (
+                  <span className="aero-badge">{latestAnalysis.analysis_type}</span>
+                ) : null}
               </div>
 
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-                <h5 className="text-sm font-semibold text-slate-900">
-                  Observations
-                </h5>
-                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-700">
-                  {perspectiveResult.observations.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </div>
+              <h3 className="mt-4 text-lg font-semibold tracking-[-0.02em] text-slate-50">
+                {t("perspectiveExplorer.result.title")}
+              </h3>
 
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
-                <h5 className="text-sm font-semibold text-emerald-900">
-                  Suggestion
-                </h5>
-                <p className="mt-2 text-sm leading-6 text-emerald-950">
-                  {perspectiveResult.suggestion}
+              {!latestAnalysis ? (
+                <p className="mt-3 text-sm leading-7 text-slate-300/84">
+                  {t("perspectiveExplorer.result.empty")}
                 </p>
-              </div>
+              ) : (
+                <div className="mt-4 grid gap-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="aero-badge">
+                      {t("perspectiveExplorer.result.badges.generated")}
+                    </span>
+                    <span className="aero-badge">{latestAnalysis.analysis_type}</span>
+                  </div>
+
+                  <div className="rounded-[1.3rem] border border-white/8 bg-slate-950/22 p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      {t("perspectiveExplorer.result.outputLabel")}
+                    </p>
+
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-8 text-slate-200">
+                      {latestAnalysis.content}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
-          ) : null}
+
+            <div className="analysis-result-panel__orb analysis-result-panel__orb--one" />
+            <div className="analysis-result-panel__orb analysis-result-panel__orb--two" />
+          </div>
         </div>
       )}
-    </section>
-  )
+    </SectionCard>
+  );
 }

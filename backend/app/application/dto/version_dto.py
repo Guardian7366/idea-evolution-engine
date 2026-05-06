@@ -1,26 +1,24 @@
-from pydantic import BaseModel, Field
-from typing import Literal
+from __future__ import annotations
+
+from datetime import datetime
+
+from pydantic import BaseModel
 
 
-class ActiveIdeaVersion(BaseModel):
-    """Represents an active working version of an idea."""
+class VersionResponse(BaseModel):
+    id: str
+    idea_id: str
+    content: str
+    version_number: int
+    transformation_type: str
+    source_variant_id: str | None = None
+    parent_version_id: str | None = None
+    user_instruction: str | None = None
+    is_active: bool
+    status: str
+    created_at: datetime
+    updated_at: datetime
 
-    version_id: str = Field(..., description="Unique version identifier")
-    idea_id: str = Field(..., description="Parent idea ID")
-    session_id: str = Field(..., description="Parent session ID")
-    title: str = Field(..., min_length=1, description="Short version title")
-    content: str = Field(..., min_length=1, description="Main version content")
-    status: Literal["active"] = Field(..., description="Current version status")
-    version_number: int = Field(..., ge=1, description="Sequential version number")
-    parent_version_id: str | None = Field(
-        default=None,
-        description="Previous version used as the source for this version",
-    )
-    source_variant_id: str | None = Field(
-        default=None,
-        description="Original selected variant if this version comes from one",
-    )
-    transformation_type: Literal["selection", "evolve", "refine", "mutate"] = Field(
-        ...,
-        description="Action that produced this version",
-    )
+
+class VersionListResponse(BaseModel):
+    items: list[VersionResponse]

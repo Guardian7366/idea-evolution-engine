@@ -1,116 +1,244 @@
-import type { FinalSynthesisResult } from '../../../types/idea'
-import { Button } from '../../../components/shared/ui/Button'
-import { EmptyState } from '../../../components/shared/EmptyState'
-import { Spinner } from '../../../components/shared/ui/Spinner'
+import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import EmptyState from "../../../components/shared/EmptyState";
+import Button from "../../../components/shared/ui/Button";
+import SectionCard from "../../../components/shared/ui/SectionCard";
+import type { SynthesisResponse, VersionResponse } from "../../../types/idea";
 
-interface FinalSynthesisPanelProps {
-  hasActiveVersion: boolean
-  synthesisResult: FinalSynthesisResult | null
-  isGenerating: boolean
-  onGenerate: () => void
+type FinalSynthesisPanelProps = {
+  activeVersion: VersionResponse | null;
+  synthesis: SynthesisResponse | null;
+  isLoading: boolean;
+  onGenerate: () => Promise<void>;
+};
+
+type SynthesisBlockProps = {
+  title: string;
+  content: string;
+  variant?: "primary" | "secondary" | "wide";
+};
+
+const SYNTHESIS_CELEBRATION_MS = 1450;
+
+function SynthesisCompletionOverlay({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div className="synthesis-completion-overlay synthesis-completion-overlay--visible" aria-hidden="true">
+      <div className="synthesis-completion-overlay__veil" />
+      <div className="synthesis-completion-overlay__aurora synthesis-completion-overlay__aurora--one" />
+      <div className="synthesis-completion-overlay__aurora synthesis-completion-overlay__aurora--two" />
+      <div className="synthesis-completion-overlay__ring synthesis-completion-overlay__ring--one" />
+      <div className="synthesis-completion-overlay__ring synthesis-completion-overlay__ring--two" />
+      <div className="synthesis-completion-overlay__beam" />
+
+      <div className="synthesis-completion-overlay__core">
+        <div className="synthesis-completion-overlay__logo-shell">
+          <img src="/favicon.png" alt="" className="synthesis-completion-overlay__logo" />
+        </div>
+
+        <div className="synthesis-completion-overlay__spark synthesis-completion-overlay__spark--one" />
+        <div className="synthesis-completion-overlay__spark synthesis-completion-overlay__spark--two" />
+        <div className="synthesis-completion-overlay__spark synthesis-completion-overlay__spark--three" />
+
+        <div className="synthesis-completion-overlay__text-stack">
+          <p className="synthesis-completion-overlay__title">{title}</p>
+          <p className="synthesis-completion-overlay__subtitle">{subtitle}</p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-export function FinalSynthesisPanel({
-  hasActiveVersion,
-  synthesisResult,
-  isGenerating,
-  onGenerate,
-}: FinalSynthesisPanelProps) {
-  const isDisabled = isGenerating
-
+function SynthesisBlock({ title, content, variant = "secondary" }: SynthesisBlockProps) {
   return (
-    <section className="mx-auto w-full max-w-5xl rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur-sm">
-      <div className="mb-4 space-y-2">
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-            Step 5
-          </span>
-          <h3 className="text-2xl font-semibold text-slate-900">
-            Final synthesis
-          </h3>
-        </div>
+    <div
+      className={[
+        "synthesis-block synthesis-block--final rounded-[1.6rem] p-5 md:p-6",
+        variant === "primary" ? "synthesis-block--primary" : "",
+        variant === "wide" ? "synthesis-block--wide" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <div className="synthesis-block__glow" />
+      <div className="synthesis-block__shine" />
 
-        <p className="max-w-2xl text-sm leading-6 text-slate-600">
-          Generate a structured synthesis from the current active version to
-          capture the core concept, value proposition, and recommended next step.
+      <div className="relative z-[1]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+          {title}
+        </p>
+        <p className="mt-4 whitespace-pre-wrap text-sm leading-8 text-slate-200">
+          {content}
         </p>
       </div>
+    </div>
+  );
+}
 
-      {!hasActiveVersion ? (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6">
-          <EmptyState>
-            You need an active version before generating a final synthesis.
-          </EmptyState>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-slate-500">
-              Use this as the closing step to summarize the evolved idea.
-            </p>
+export default function FinalSynthesisPanel({
+  activeVersion,
+  synthesis,
+  isLoading,
+  onGenerate,
+}: FinalSynthesisPanelProps) {
+  const { t } = useTranslation();
+  const [isSynthesisCelebrating, setIsSynthesisCelebrating] = useState(false);
+  const celebrationTimeoutRef = useRef<number | null>(null);
 
-            <Button
-              type="button"
-              onClick={onGenerate}
-              disabled={isDisabled}
-              loading={isGenerating}
-              className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5"
-            >
-              <span className="inline-flex items-center gap-2">
-                {isGenerating && <Spinner size="sm" />}
-                {isGenerating ? 'Generating...' : 'Generate synthesis'}
-              </span>
-            </Button>
+  useEffect(() => {
+    return () => {
+      if (celebrationTimeoutRef.current !== null) {
+        window.clearTimeout(celebrationTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const showSynthesisCelebration = () => {
+    if (celebrationTimeoutRef.current !== null) {
+      window.clearTimeout(celebrationTimeoutRef.current);
+      celebrationTimeoutRef.current = null;
+    }
+
+    setIsSynthesisCelebrating(true);
+
+    celebrationTimeoutRef.current = window.setTimeout(() => {
+      setIsSynthesisCelebrating(false);
+      celebrationTimeoutRef.current = null;
+    }, SYNTHESIS_CELEBRATION_MS);
+  };
+
+  const handleGenerateSynthesis = async () => {
+    await onGenerate();
+    showSynthesisCelebration();
+  };
+
+  return (
+    <SectionCard
+      title={t("finalSynthesis.title")}
+      description={t("finalSynthesis.description")}
+      action={
+        <Button
+          type="button"
+          variant="primary"
+          disabled={!activeVersion || isLoading}
+          onClick={handleGenerateSynthesis}
+        >
+          {t("finalSynthesis.generateAction")}
+        </Button>
+      }
+    >
+      <div className="synthesis-stage-shell relative">
+        <div className="synthesis-stage-shell__halo synthesis-stage-shell__halo--one" />
+        <div className="synthesis-stage-shell__halo synthesis-stage-shell__halo--two" />
+        <div className="synthesis-stage-shell__grid" />
+
+        {!synthesis ? (
+          <div className="synthesis-empty-shell relative z-[1]">
+            <EmptyState
+              title={t("finalSynthesis.empty.title")}
+              description={t("finalSynthesis.empty.description")}
+            />
           </div>
+        ) : (
+          <div className="synthesis-stage relative z-[1] grid gap-5">
+            <div className="synthesis-finale-hero relative overflow-hidden rounded-[1.65rem] border border-white/8 bg-slate-950/20 p-5 md:p-6">
+              {isSynthesisCelebrating ? (
+                <SynthesisCompletionOverlay
+                  title={t("finalSynthesis.badges.generated")}
+                  subtitle={t("finalSynthesis.headerTitle")}
+                />
+              ) : null}
 
-          {synthesisResult ? (
-            <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="rounded-xl bg-slate-50 p-4">
-                <h4 className="text-base font-semibold text-slate-900">Title</h4>
-                <p className="mt-2 text-sm leading-6 text-slate-700">
-                  {synthesisResult.title}
+              <div className="synthesis-finale-hero__orb synthesis-finale-hero__orb--one" />
+              <div className="synthesis-finale-hero__orb synthesis-finale-hero__orb--two" />
+              <div className="synthesis-finale-hero__arc synthesis-finale-hero__arc--one" />
+              <div className="synthesis-finale-hero__arc synthesis-finale-hero__arc--two" />
+
+              <div className="relative z-[1]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="aero-badge">{t("finalSynthesis.badges.flowClosure")}</span>
+                  <span className="aero-badge aero-badge--success">
+                    {t("finalSynthesis.badges.generated")}
+                  </span>
+                  <span className="aero-badge">
+                    {t("finalSynthesis.badges.consolidatedResult")}
+                  </span>
+                </div>
+
+                <h3 className="mt-4 text-xl font-semibold tracking-[-0.02em] text-slate-50 md:text-2xl">
+                  {t("finalSynthesis.headerTitle")}
+                </h3>
+
+                <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300/84">
+                  {t("finalSynthesis.headerDescription")}
                 </p>
-              </div>
 
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-                <h4 className="text-base font-semibold text-slate-900">
-                  Core concept
-                </h4>
-                <p className="mt-2 text-sm leading-6 text-slate-700">
-                  {synthesisResult.core_concept}
-                </p>
-              </div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <div className="synthesis-summary-card rounded-[1.2rem] px-3 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      {t("finalSynthesis.summaryCards.state.label")}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-200">
+                      {t("finalSynthesis.summaryCards.state.value")}
+                    </p>
+                  </div>
 
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-                <h4 className="text-base font-semibold text-slate-900">
-                  Value proposition
-                </h4>
-                <p className="mt-2 text-sm leading-6 text-slate-700">
-                  {synthesisResult.value_proposition}
-                </p>
-              </div>
+                  <div className="synthesis-summary-card rounded-[1.2rem] px-3 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      {t("finalSynthesis.summaryCards.base.label")}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-200">
+                      {t("finalSynthesis.summaryCards.base.value", {
+                        number: activeVersion?.version_number ?? "-",
+                      })}
+                    </p>
+                  </div>
 
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
-                <h4 className="text-base font-semibold text-emerald-900">
-                  Recommended next step
-                </h4>
-                <p className="mt-2 text-sm leading-6 text-emerald-950">
-                  {synthesisResult.recommended_next_step}
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-                <h4 className="text-base font-semibold text-slate-900">Notes</h4>
-                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-6 text-slate-700">
-                  {synthesisResult.notes.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
+                  <div className="synthesis-summary-card rounded-[1.2rem] px-3 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      {t("finalSynthesis.summaryCards.result.label")}
+                    </p>
+                    <p className="mt-2 text-sm text-slate-200">
+                      {t("finalSynthesis.summaryCards.result.value")}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
-          ) : null}
-        </div>
-      )}
-    </section>
-  )
+
+            <div className="grid gap-5 xl:grid-cols-2">
+              <SynthesisBlock
+                variant="primary"
+                title={t("finalSynthesis.blocks.summary")}
+                content={synthesis.summary}
+              />
+              <SynthesisBlock
+                title={t("finalSynthesis.blocks.valueProposition")}
+                content={synthesis.value_proposition}
+              />
+              <SynthesisBlock
+                title={t("finalSynthesis.blocks.targetAudience")}
+                content={synthesis.target_audience}
+              />
+              <SynthesisBlock
+                title={t("finalSynthesis.blocks.nextSteps")}
+                content={synthesis.next_steps}
+              />
+            </div>
+
+            <SynthesisBlock
+              variant="wide"
+              title={t("finalSynthesis.blocks.structuredDescription")}
+              content={synthesis.structured_description}
+            />
+          </div>
+        )}
+      </div>
+    </SectionCard>
+  );
 }

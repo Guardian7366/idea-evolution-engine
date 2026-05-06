@@ -1,46 +1,21 @@
+from __future__ import annotations
+
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
-class CompareVersionsRequest(BaseModel):
-    """Request contract for comparing two versions of the same idea."""
-
-    session_id: str = Field(..., min_length=1, description="Parent session ID")
-    idea_id: str = Field(..., min_length=1, description="Parent idea ID")
-    version_id_a: str = Field(..., min_length=1, description="First version ID")
-    version_id_b: str = Field(..., min_length=1, description="Second version ID")
+class ComparisonRequest(BaseModel):
+    idea_id: str = Field(min_length=1, max_length=100)
+    left_version_id: str = Field(min_length=1, max_length=100)
+    right_version_id: str = Field(min_length=1, max_length=100)
+    language: str | None = Field(default="auto", max_length=10)
 
 
-class VersionComparisonResult(BaseModel):
-    """Represents the analytical comparison between two idea versions."""
-
-    summary: str = Field(..., description="High-level comparison summary")
-    strengths_version_a: list[str] = Field(
-        ...,
-        description="Main strengths detected in version A",
-    )
-    strengths_version_b: list[str] = Field(
-        ...,
-        description="Main strengths detected in version B",
-    )
-    key_differences: list[str] = Field(
-        ...,
-        description="Main differences between both versions",
-    )
-    recommendation: str = Field(
-        ...,
-        description="Suggested next decision based on the comparison",
-    )
-
-
-class CompareVersionsResponse(BaseModel):
-    """Response returned after comparing two versions."""
-
-    session_id: str = Field(..., description="Parent session ID")
-    idea_id: str = Field(..., description="Parent idea ID")
-    version_id_a: str = Field(..., description="First compared version ID")
-    version_id_b: str = Field(..., description="Second compared version ID")
-    comparison: VersionComparisonResult = Field(
-        ...,
-        description="Comparison result for both versions",
-    )
-    message: str = Field(..., description="Operation result message")
+class ComparisonResponse(BaseModel):
+    id: str
+    idea_id: str
+    left_version_id: str
+    right_version_id: str
+    comparison_text: str | None
+    created_at: datetime

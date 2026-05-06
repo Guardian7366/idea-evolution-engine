@@ -1,12 +1,20 @@
-# Normalize line endings automatically
-* text=auto
+* text=auto eol=lf
 
-# Force LF for code files (recommended for consistency)
-*.ts text eol=lf
-*.tsx text eol=lf
-*.js text eol=lf
-*.json text eol=lf
-*.css text eol=lf
-*.html text eol=lf
-*.py text eol=lf
-*.md text eol=lf
+*.py text
+*.ts text
+*.tsx text
+*.js text
+*.jsx text
+*.json text
+*.md text
+*.css text
+*.html text
+*.yml text
+*.yaml text
+*.env.example text
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.svg text
+*.ico binary

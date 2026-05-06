@@ -1,22 +1,20 @@
+from __future__ import annotations
+
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
 class IdeaCreateRequest(BaseModel):
-    """Request contract for registering a new idea inside a session."""
-
-    session_id: str = Field(..., min_length=1, description="Parent session ID")
-    initial_prompt: str = Field(
-        ...,
-        min_length=3,
-        max_length=1000,
-        description="User's initial idea input",
-    )
+    session_id: str = Field(min_length=1, max_length=100)
+    content: str = Field(min_length=1, max_length=2000)
+    title: str | None = Field(default=None, max_length=120)
 
 
-class IdeaCreateResponse(BaseModel):
-    """Response returned after creating a new idea."""
-
-    idea_id: str = Field(..., description="Unique idea identifier")
-    session_id: str = Field(..., description="Parent session ID")
-    initial_prompt: str = Field(..., description="Original user input")
-    message: str = Field(..., description="Operation result message")
+class IdeaResponse(BaseModel):
+    id: str
+    session_id: str
+    content: str
+    title: str | None
+    created_at: datetime
+    updated_at: datetime

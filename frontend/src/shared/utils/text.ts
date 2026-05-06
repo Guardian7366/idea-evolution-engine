@@ -1,7 +1,4 @@
-// Small text utilities used to keep user-facing content cleaner.
-export function normalizeUserText(value: string): string {
-  return value
-    .trim()
-    .replace(/^["']+|["']+$/g, '')
-    .replace(/\s+/g, ' ')
+export function truncateText(value: string, maxLength = 120): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength).trim()}...`;
 }

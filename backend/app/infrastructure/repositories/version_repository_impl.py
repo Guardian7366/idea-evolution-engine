@@ -1,114 +1,119 @@
-from sqlite3 import Cursor
-from typing import List, Optional
+from __future__ import annotations
+
+from datetime import datetime
+from sqlalchemy.orm import Session as DBSession
 
 from app.domain.entities.idea_version import IdeaVersion
 from app.domain.repositories.version_repository import VersionRepository
+from app.domain.value_objects.transformation_type import TransformationType
 from app.domain.value_objects.version_status import VersionStatus
+from app.infrastructure.persistence.models.version_model import IdeaVersionModel
+from datetime import datetime, timezone
 
+class SqliteVersionRepository(VersionRepository):
+    def __init__(self, db: DBSession) -> None:
+        self.db = db
 
-class VersionRepository(VersionRepository):
-    async def save(self, version: IdeaVersion, cursor: Cursor) -> IdeaVersion:
-        """Guarda o actualiza una versión."""
-        cursor.execute(
-            "INSERT OR REPLACE INTO idea_versions (id, session_id, idea_id, version_number, title, content, status, is_active, source_variant_id, parent_version_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (version.id, version.session_id, version.idea_id, version.version_number, version.title, version.content, version.status.value, version.is_active, version.source_variant_id, version.parent_version_id, version.created_at.isoformat(), version.updated_at.isoformat())
+    def save(self, version: IdeaVersion) -> IdeaVersion:
+        model = IdeaVersionModel(
+            id=version.id,
+            idea_id=version.idea_id,
+            source_variant_id=version.source_variant_id,
+            parent_version_id=version.parent_version_id,
+            content=version.content,
+            version_number=version.version_number,
+            transformation_type=version.transformation_type.value,
+            user_instruction=version.user_instruction,
+            is_active=version.is_active,
+            status=version.status.value,
+            created_at=version.created_at.isoformat(),
+            updated_at=version.updated_at.isoformat(),
         )
-        return version
+        self.db.add(model)
+        self.db.commit()
+        self.db.refresh(model)
 
-    async def get_by_id(self, version_id: str, cursor: Cursor) -> Optional[IdeaVersion]:
-        """Retorna la versión con ese ID o None si no existe."""
-        cursor.execute("SELECT id, session_id, idea_id, version_number, title, content, status, is_active, source_variant_id, parent_version_id, created_at, updated_at FROM idea_versions WHERE id = ?", (version_id,))
-        row = cursor.fetchone()
-        if row:
-            return IdeaVersion(
-                id=row[0],
-                session_id=row[1],
-                idea_id=row[2],
-                version_number=row[3],
-                title=row[4],
-                content=row[5],
-                status=VersionStatus(row[6]),
-                is_active=row[7],
-                source_variant_id=row[8],
-                parent_version_id=row[9],
-                created_at=row[10],
-                updated_at=row[11]
+        return self._to_entity(model)
+
+    def list_by_idea_id(self, idea_id: str) -> list[IdeaVersion]:
+        models = (
+            self.db.query(IdeaVersionModel)
+            .filter(IdeaVersionModel.idea_id == idea_id)
+            .order_by(IdeaVersionModel.version_number.asc())
+            .all()
+        )
+        return [self._to_entity(model) for model in models]
+
+    def get_by_id(self, version_id: str) -> IdeaVersion | None:
+        model = (
+            self.db.query(IdeaVersionModel)
+            .filter(IdeaVersionModel.id == version_id)
+            .first()
+        )
+        if model is None:
+            return None
+        return self._to_entity(model)
+
+    def get_active_by_idea_id(self, idea_id: str) -> IdeaVersion | None:
+        model = (
+            self.db.query(IdeaVersionModel)
+            .filter(
+                IdeaVersionModel.idea_id == idea_id,
+                IdeaVersionModel.is_active.is_(True),
             )
-        return None
+            .first()
+        )
+        if model is None:
+            return None
+        return self._to_entity(model)
 
-    async def get_by_idea_id(self, idea_id: str, cursor: Cursor) -> List[IdeaVersion]:
-        """Retorna todas las versiones de una idea ordenadas por version_number ascendente."""
-        cursor.execute("SELECT id, session_id, idea_id, version_number, title, content, status, is_active, source_variant_id, parent_version_id, created_at, updated_at FROM idea_versions WHERE idea_id = ? ORDER BY version_number ASC", (idea_id,))
-        rows = cursor.fetchall()
-        return [
-            IdeaVersion(
-                id=row[0],
-                session_id=row[1],
-                idea_id=row[2],
-                version_number=row[3],
-                title=row[4],
-                content=row[5],
-                status=VersionStatus(row[6]),
-                is_active=row[7],
-                source_variant_id=row[8],
-                parent_version_id=row[9],
-                created_at=row[10],
-                updated_at=row[11]
+    def deactivate_active_versions(self, idea_id: str) -> None:
+        active_models = (
+            self.db.query(IdeaVersionModel)
+            .filter(
+                IdeaVersionModel.idea_id == idea_id,
+                IdeaVersionModel.is_active.is_(True),
             )
-            for row in rows
-        ]
+            .all()
+        )
 
-    async def get_latest_by_idea_id(self, idea_id: str, cursor: Cursor) -> Optional[IdeaVersion]:
-        """Retorna la versión con el version_number más alto para una idea."""
-        cursor.execute("SELECT id, session_id, idea_id, version_number, title, content, status, is_active, source_variant_id, parent_version_id, created_at, updated_at FROM idea_versions WHERE idea_id = ? ORDER BY version_number DESC LIMIT 1", (idea_id,))
-        row = cursor.fetchone()
-        if row:
-            return IdeaVersion(
-                id=row[0],
-                session_id=row[1],
-                idea_id=row[2],
-                version_number=row[3],
-                title=row[4],
-                content=row[5],
-                status=VersionStatus(row[6]),
-                is_active=row[7],
-                source_variant_id=row[8],
-                parent_version_id=row[9],
-                created_at=row[10],
-                updated_at=row[11]
-            )
-        return None
+        for model in active_models:
+            model.is_active = False
+            model.status = VersionStatus.DERIVED.value
+            model.updated_at = datetime.now(timezone.utc).isoformat()
 
-    async def get_by_status(self, session_id: str, status: VersionStatus, cursor: Cursor) -> List[IdeaVersion]:
-        """Retorna todas las ideas versionadas con un estado específico."""
-        cursor.execute("SELECT id, session_id, idea_id, version_number, title, content, status, is_active, source_variant_id, parent_version_id, created_at, updated_at FROM idea_versions WHERE session_id = ? AND status = ?", (session_id, status.value))
-        rows = cursor.fetchall()
-        return [
-            IdeaVersion(
-                id=row[0],
-                session_id=row[1],
-                idea_id=row[2],
-                version_number=row[3],
-                title=row[4],
-                content=row[5],
-                status=VersionStatus(row[6]),
-                is_active=row[7],
-                source_variant_id=row[8],
-                parent_version_id=row[9],
-                created_at=row[10],
-                updated_at=row[11]
-            )
-            for row in rows
-        ]
+        self.db.commit()
 
+    def activate_version(self, version_id: str) -> IdeaVersion | None:
+        model = (
+            self.db.query(IdeaVersionModel)
+            .filter(IdeaVersionModel.id == version_id)
+            .first()
+        )
 
-    async def get_next_version_number(self, idea_id: str, cursor: Cursor) -> int:
-        """Calcula el próximo número de versión para una idea."""
-        cursor.execute("SELECT COALESCE(MAX(version_number), 0) + 1 FROM idea_versions WHERE idea_id = ?", (idea_id,))
-        row = cursor.fetchone()
-        return row[0] if row else 1
+        if model is None:
+            return None
 
-    async def delete(self, version_id: str, cursor: Cursor) -> bool:
-        """Elimina una versión. Retorna True si se eliminó, False si no existía."""
-        cursor.execute("DELETE FROM idea_versions WHERE id = ?", (version_id,))
-        return cursor.rowcount > 0
+        model.is_active = True
+        model.status = VersionStatus.ACTIVE.value
+        model.updated_at = datetime.now(timezone.utc).isoformat()
+
+        self.db.commit()
+        self.db.refresh(model)
+        return self._to_entity(model)
+
+    def _to_entity(self, model: IdeaVersionModel) -> IdeaVersion:
+        return IdeaVersion(
+            id=model.id,
+            idea_id=model.idea_id,
+            source_variant_id=model.source_variant_id,
+            parent_version_id=model.parent_version_id,
+            content=model.content,
+            version_number=model.version_number,
+            transformation_type=TransformationType(model.transformation_type),
+            user_instruction=model.user_instruction,
+            is_active=model.is_active,
+            status=VersionStatus(model.status),
+            created_at=datetime.fromisoformat(model.created_at),
+            updated_at=datetime.fromisoformat(model.updated_at),
+        )
