@@ -29,37 +29,37 @@ export function IdeaHistorySidebar({
   return (
     <>
       <div
-        className={`fixed inset-0 z-40 bg-slate-900/40 transition-opacity ${
+        className={`fixed inset-500 z-40 transition-opacity ${
           isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
         onClick={onClose}
       />
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-[320px] max-w-[90vw] border-r border-slate-200 bg-white shadow-xl transition-transform duration-300 ${
+        className={`fixed mt-18 inset-y-0 left-0 z-50 w-[320px] max-w-[90vw] border-r border-slate-200 bg-zinc-300 shadow-xl transition-transform duration-300 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-slate-200 p-4">
-            <div>
-              <h2 className="text-base font-semibold text-slate-900">History</h2>
-              <p className="text-sm text-slate-500">Recent ideas in this browser session</p>
+          <div>
+              <h2 className="text-3xl font-semibold text-slate-900">Chats</h2>
             </div>
+
 
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+              className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 size-18"
               aria-label="Close history"
             >
-              X
+              <img src="src/assets/flowbite--close-sidebar-solid.png" alt="" />
             </button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4">
             {ideas.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500">
+              <div className="rounded-lg border border-dashed border-slate-300 p-4 text-base text-slate-500">
                 No recent ideas yet.
               </div>
             ) : (
@@ -74,11 +74,11 @@ export function IdeaHistorySidebar({
                       onClick={() => onSelectIdea(idea.ideaId)}
                       className={`w-full rounded-lg border p-3 text-left transition ${
                         isActive
-                          ? 'border-slate-900 bg-slate-50'
+                          ? 'border-slate-200 bg-zinc-100'
                           : 'border-slate-200 hover:bg-slate-50'
                       }`}
                     >
-                      <div className="line-clamp-2 text-sm font-medium text-slate-900">
+                      <div className="line-clamp-2 text-sm font-medium text-slate-900 font-semibold">
                         {idea.input}
                       </div>
                       <div className="mt-2 text-xs text-slate-500">

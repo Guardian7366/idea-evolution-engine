@@ -70,6 +70,7 @@ export function useIdeaFlow() {
   const [isExploringPerspective, setIsExploringPerspective] = useState(false)
   const [isGeneratingSynthesis, setIsGeneratingSynthesis] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
 
   const handleStartFlow = async () => {
     const normalizedIdeaInput = normalizeUserText(ideaInput)
@@ -206,6 +207,7 @@ export function useIdeaFlow() {
     // The selected variant becomes both the base version and current active version.
     setBaseVersion(response.active_version)
     setActiveVersion(response.active_version)
+    setSelectedVariantId(variantId)
     setTransformInstruction('')
   } catch (error) {
     console.error('Variant selection error:', error)
@@ -366,6 +368,7 @@ export function useIdeaFlow() {
     variants,
     baseVersion,
     activeVersion,
+    selectedVariantId,
     comparisonResult,
     selectedPerspective,
     perspectiveResult,
