@@ -28,7 +28,7 @@ export function ActiveVersionPanel({
         className="
           flex w-full items-center justify-between gap-3
           px-5 py-4 text-left
-          transition hover:bg-slate-50 hover:rounded-2xl
+          transition hover:bg-slate-50 rounded-2xl
         "
       >
         <div className="min-w-0">
